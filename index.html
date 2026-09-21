@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E-Learning Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ===== หน้าล็อกอิน ===== -->
+<div id="login" class="login-wrap">
+  <div class="login-card">
+    <div class="logo">
+      <svg width="30" height="30" viewBox="0 0 40 40"><path d="M6 20 L20 6 L20 14 L12 20 L20 26 L20 34 Z" fill="#F68920"/><path d="M20 6 L34 20 L26 20 L20 14 Z" fill="#21BDBE"/><path d="M20 26 L28 20 L34 20 L20 34 Z" fill="#FCBC17"/></svg>
+    </div>
+    <h1>E-Learning Platform</h1>
+    <p class="sub">ระบบอบรมและทดสอบออนไลน์</p>
+    <form id="loginForm">
+      <div class="field"><label>อีเมล</label><input id="email" type="email" autocomplete="username" required></div>
+      <div class="field"><label>รหัสผ่าน</label><input id="password" type="password" autocomplete="current-password" required></div>
+      <div class="login-err" id="loginErr"></div>
+      <button class="btn btn-primary" id="loginBtn" type="submit">เข้าสู่ระบบ</button>
+    </form>
+  </div>
+</div>
+
+<!-- ===== แอปหลัก ===== -->
+<div id="app" class="shell hidden">
+  <aside class="sidebar">
+    <div class="brand">
+      <svg width="20" height="20" viewBox="0 0 40 40"><path d="M6 20 L20 6 L20 14 L12 20 L20 26 L20 34 Z" fill="#F68920"/><path d="M20 6 L34 20 L26 20 L20 14 Z" fill="#fff"/><path d="M20 26 L28 20 L34 20 L20 34 Z" fill="#FCBC17"/></svg>
+      E-Learning
+    </div>
+    <nav>
+      <a data-nav="home" class="active">หน้าหลัก</a>
+      <a data-nav="lessons">บทเรียน</a>
+      <a data-nav="quizzes">แบบทดสอบ</a>
+      <a data-nav="admin" id="navAdmin" style="display:none">จัดการผู้ใช้</a>
+    </nav>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <div class="logo">
+        <svg width="24" height="24" viewBox="0 0 40 40"><path d="M6 20 L20 6 L20 14 L12 20 L20 26 L20 34 Z" fill="#F68920"/><path d="M20 6 L34 20 L26 20 L20 14 Z" fill="#21BDBE"/><path d="M20 26 L28 20 L34 20 L20 34 Z" fill="#FCBC17"/></svg>
+        <b style="margin-left:6px">E-Learning Platform</b>
+      </div>
+      <div class="who">สวัสดี <b id="whoName">-</b> · <a id="logoutBtn" style="cursor:pointer;color:var(--teal-700)">ออกจากระบบ</a></div>
+    </div>
+    <div class="content" id="view"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
