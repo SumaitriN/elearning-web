@@ -102,14 +102,27 @@ function renderHome(v) {
 }
 
 // ---------- รายการบทเรียน / ข้อสอบ ----------
+// แถบเลือกทีม (เฉพาะแอดมิน — เห็นเนื้อหาได้ทุกทีม)
+function teamBar() {
+  if (ME.role !== 'admin' || !CATALOG.teams || CATALOG.teams.length < 2) return '';
+  const opts = CATALOG.teams.map(t => `<option value="${t.id}" ${CATALOG.active_team === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
+  return `<div class="card" style="display:flex;gap:10px;align-items:center;margin-bottom:14px">
+    <span class="muted">เลือกทีม:</span>
+    <select id="teamSel" style="padding:8px 11px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px">${opts}</select></div>`;
+}
+
 function renderList(v, kind) {
   const items = kind === 'lesson' ? CATALOG.lessons : CATALOG.quizzes;
   const title = kind === 'lesson' ? 'บทเรียน' : 'แบบทดสอบ';
-  if (!items || !items.length) { v.innerHTML = `<h1>${title}</h1><div class="card muted">ยังไม่มีรายการ</div>`; return; }
-  v.innerHTML = `<h1>${title}</h1><div class="grid">` + items.map(it => kind === 'lesson'
-    ? `<div class="tile" data-id="${it.id}"><div class="k">${esc(it.section || 'บทเรียน')}</div><div class="t">${esc(it.title)}</div></div>`
-    : `<div class="tile" data-id="${it.id}"><div class="k">แบบทดสอบ</div><div class="t">${esc(it.title)}</div><div class="m">${it.n} ข้อ · ${it.minutes} นาที · ผ่าน ${it.pass}%</div></div>`
-  ).join('') + `</div>`;
+  const body = (!items || !items.length)
+    ? `<div class="card muted">ยังไม่มีรายการ</div>`
+    : `<div class="grid">` + items.map(it => kind === 'lesson'
+        ? `<div class="tile" data-id="${it.id}"><div class="k">${esc(it.section || 'บทเรียน')}</div><div class="t">${esc(it.title)}</div></div>`
+        : `<div class="tile" data-id="${it.id}"><div class="k">แบบทดสอบ</div><div class="t">${esc(it.title)}</div><div class="m">${it.n} ข้อ · ${it.minutes} นาที · ผ่าน ${it.pass}%</div></div>`
+      ).join('') + `</div>`;
+  v.innerHTML = `<h1>${title}</h1>` + teamBar() + body;
+  const tsel = $('#teamSel');
+  if (tsel) tsel.addEventListener('change', async (e) => { CATALOG = await rpc('app_catalog', { p_team: e.target.value }); renderList(v, kind); });
   v.querySelectorAll('[data-id]').forEach(t =>
     t.addEventListener('click', () => go(kind === 'lesson' ? 'lesson' : 'quiz', t.getAttribute('data-id'))));
 }
