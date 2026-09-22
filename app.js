@@ -530,7 +530,8 @@ async function renderCerts(v) {
   function draw() {
     v.innerHTML = `<h1>ใบประกาศ</h1>
       <div class="card" style="max-width:600px"><h2>ออกใบประกาศ</h2>
-        <div class="field"><label>ผู้รับ</label><select id="cUser" style="${inp}">${users.map(u => `<option value="${u.id}">${esc(u.name || u.email)} (${esc(u.email)})</option>`).join('')}</select></div>
+        <div class="field"><label>ผู้รับ (บัญชี)</label><select id="cUser" style="${inp}">${users.map(u => `<option value="${u.id}">${esc(u.name || u.email)} (${esc(u.email)})</option>`).join('')}</select></div>
+        <div class="field"><label>ชื่อบนใบประกาศ (แก้ได้)</label><input id="cName" style="${inp}" value="${esc(users[0] ? (users[0].name || users[0].email) : '')}"></div>
         <div class="field"><label>บรรทัดที่ 1 (หัวข้อ)</label><input id="cT1" style="${inp}" value="CERTIFICATE OF COMPLETION"></div>
         <div class="field"><label>บรรทัดที่ 2 (หลักสูตร/รางวัล — ตัวใหญ่สีทอง)</label><input id="cT2" style="${inp}" value="ผ่านการอบรมปฐมนิเทศ (Orientation)"></div>
         <div class="login-err" id="cErr" style="margin:0 0 10px"></div>
@@ -538,11 +539,12 @@ async function renderCerts(v) {
       </div>
       <div id="cView"></div>
       <div class="card"><h2>ใบประกาศที่ออกแล้ว</h2><div id="cList" class="muted">กำลังโหลด...</div></div>`;
+    $('#cUser').addEventListener('change', (e) => { const u = users.find(x => x.id === e.target.value); $('#cName').value = u ? (u.name || u.email) : ''; });
     $('#cBtn').addEventListener('click', async () => {
       const btn = $('#cBtn'); btn.disabled = true;
       const t1 = $('#cT1').value.trim(), t2 = $('#cT2').value.trim();
       try {
-        const r = await rpc('app_admin_issue_cert', { p_user_id: $('#cUser').value, p_title: t1 + '|||' + t2 });
+        const r = await rpc('app_admin_issue_cert', { p_user_id: $('#cUser').value, p_title: t1 + '|||' + t2, p_name: $('#cName').value.trim() });
         showCert({ no: r.no, name: r.name, title1: t1, title2: t2, monthYear: fmtMonthYear(r.date) }); loadList();
       } catch (e) { $('#cErr').textContent = 'ออกใบประกาศไม่สำเร็จ'; } finally { btn.disabled = false; }
     });
