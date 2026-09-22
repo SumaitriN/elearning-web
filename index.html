@@ -38,7 +38,6 @@
       <a data-nav="home" class="active">หน้าหลัก</a>
       <a data-nav="lessons">บทเรียน</a>
       <a data-nav="quizzes">แบบทดสอบ</a>
-      <a data-nav="account">เปลี่ยนรหัสผ่าน</a>
       <a data-nav="assign" class="adminNav" style="display:none">มอบหมายงาน</a>
       <a data-nav="progress" class="adminNav" style="display:none">ความคืบหน้า</a>
       <a data-nav="dashboard" class="adminNav" style="display:none">แดชบอร์ดผลสอบ</a>
@@ -53,7 +52,13 @@
         <svg width="24" height="24" viewBox="0 0 40 40"><path d="M6 20 L20 6 L20 14 L12 20 L20 26 L20 34 Z" fill="#F68920"/><path d="M20 6 L34 20 L26 20 L20 14 Z" fill="#21BDBE"/><path d="M20 26 L28 20 L34 20 L20 34 Z" fill="#FCBC17"/></svg>
         <b style="margin-left:6px">E-Learning Platform</b>
       </div>
-      <div class="who">สวัสดี <b id="whoName">-</b> · <a id="logoutBtn" style="cursor:pointer;color:var(--teal-700)">ออกจากระบบ</a></div>
+      <div class="who" style="position:relative">
+        <span id="userMenuBtn" style="cursor:pointer;user-select:none">สวัสดี <b id="whoName">-</b> <span style="color:var(--muted)">▾</span></span>
+        <div id="userMenu" class="hidden" style="position:absolute;right:0;top:30px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:170px;z-index:60;overflow:hidden">
+          <a id="menuPass" style="display:block;padding:11px 15px;cursor:pointer;font-size:14px;color:var(--ink)">🔑 เปลี่ยนรหัสผ่าน</a>
+          <a id="logoutBtn" style="display:block;padding:11px 15px;cursor:pointer;font-size:14px;color:var(--danger);border-top:1px solid var(--line)">ออกจากระบบ</a>
+        </div>
+      </div>
     </div>
     <div class="content" id="view"></div>
   </div>

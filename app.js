@@ -30,6 +30,9 @@ let CATALOG = null;
 window.addEventListener('DOMContentLoaded', async () => {
   $('#loginForm').addEventListener('submit', doLogin);
   $('#logoutBtn').addEventListener('click', doLogout);
+  $('#userMenuBtn').addEventListener('click', (e) => { e.stopPropagation(); $('#userMenu').classList.toggle('hidden'); });
+  $('#menuPass').addEventListener('click', () => { $('#userMenu').classList.add('hidden'); go('account'); });
+  document.addEventListener('click', () => $('#userMenu').classList.add('hidden'));
   document.querySelectorAll('[data-nav]').forEach(a =>
     a.addEventListener('click', () => go(a.getAttribute('data-nav'))));
   if (getSession()) {
