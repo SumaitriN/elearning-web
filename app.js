@@ -446,6 +446,7 @@ async function renderDashboard(v) {
   const teams = [...new Set(rows.map(r => r.team).filter(Boolean))];
   const quizzes = [...new Set(rows.map(r => r.quiz).filter(Boolean))];
   const PAL = ['#198E8F', '#21BDBE', '#F68920', '#FCBC17', '#8b5cf6', '#0ea5e9', '#16a34a', '#e05252'];
+  const L = (th, en) => (window.LANG === 'en' ? en : th);
   const ss = 'padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px';
   const opt = (arr, cur) => arr.map(x => `<option value="${esc(x)}" ${cur === x ? 'selected' : ''}>${esc(x)}</option>`).join('');
   let charts = {};
@@ -499,11 +500,11 @@ async function renderDashboard(v) {
     const qs = quizzes.filter(q => f.some(r => r.quiz === q));
     const byQ = qs.map(q => { const rr = f.filter(r => r.quiz === q); const p = rr.filter(r => r.pass).length; return rr.length ? Math.round(p / rr.length * 1000) / 10 : 0; });
     if (window.Chart) {
-      charts.cTest = new Chart($('#cTest'), { type: 'bar', data: { labels: qs, datasets: [{ data: byQ, backgroundColor: qs.map((_, i) => PAL[i % PAL.length]), borderRadius: 6, maxBarThickness: 46 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + c.raw + '% ผ่าน' } } }, scales: { y: { beginAtZero: true, max: 100, ticks: { callback: x => x + '%' } }, x: { grid: { display: false } } } } });
-      charts.cPie = new Chart($('#cPie'), { type: 'doughnut', data: { labels: ['ผ่าน', 'ไม่ผ่าน'], datasets: [{ data: [passed, attempts - passed], backgroundColor: ['#16a34a', '#e05252'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { position: 'bottom' } } } });
+      charts.cTest = new Chart($('#cTest'), { type: 'bar', data: { labels: qs, datasets: [{ data: byQ, backgroundColor: qs.map((_, i) => PAL[i % PAL.length]), borderRadius: 6, maxBarThickness: 46 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + c.raw + L('% ผ่าน', '% passed') } } }, scales: { y: { beginAtZero: true, max: 100, ticks: { callback: x => x + '%' } }, x: { grid: { display: false } } } } });
+      charts.cPie = new Chart($('#cPie'), { type: 'doughnut', data: { labels: [L('ผ่าน', 'Passed'), L('ไม่ผ่าน', 'Not passed')], datasets: [{ data: [passed, attempts - passed], backgroundColor: ['#16a34a', '#e05252'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { position: 'bottom' } } } });
       const bk = {}; f.forEach(r => { const d = new Date(r.created); if (isNaN(d)) return; const k = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); bk[k] = bk[k] || { n: 0, p: 0 }; bk[k].n++; if (r.pass) bk[k].p++; });
       const keys = Object.keys(bk).sort();
-      charts.cTime = new Chart($('#cTime'), { type: 'line', data: { labels: keys, datasets: [{ label: 'สอบ', data: keys.map(k => bk[k].n), borderColor: '#198E8F', backgroundColor: 'rgba(25,142,143,.1)', fill: true, tension: .3 }, { label: 'ผ่าน', data: keys.map(k => bk[k].p), borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,.08)', fill: true, tension: .3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } } } });
+      charts.cTime = new Chart($('#cTime'), { type: 'line', data: { labels: keys, datasets: [{ label: L('สอบ', 'Attempts'), data: keys.map(k => bk[k].n), borderColor: '#198E8F', backgroundColor: 'rgba(25,142,143,.1)', fill: true, tension: .3 }, { label: L('ผ่าน', 'Passed'), data: keys.map(k => bk[k].p), borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,.08)', fill: true, tension: .3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } } } });
     }
     $('#fTeam').addEventListener('change', e => { sel.team = e.target.value; draw(); });
     $('#fQuiz').addEventListener('change', e => { sel.quiz = e.target.value; draw(); });
