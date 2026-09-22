@@ -55,7 +55,10 @@
         <b style="margin-left:8px">E-Learning Platform</b>
         <span style="margin-left:8px;color:var(--muted);font-size:13px">Digiserve Corporation</span>
       </div>
-      <div class="who" style="position:relative">
+      <div class="who" style="position:relative;display:flex;align-items:center;gap:16px">
+        <span id="langToggle" style="cursor:pointer;user-select:none;font-size:13px;display:inline-flex;gap:6px;align-items:center">
+          <span data-lang="th">TH</span><span style="color:var(--line)">|</span><span data-lang="en">EN</span>
+        </span>
         <span id="userMenuBtn" style="cursor:pointer;user-select:none">สวัสดี <b id="whoName">-</b> <span style="color:var(--muted)">▾</span></span>
         <div id="userMenu" class="hidden" style="position:absolute;right:0;top:30px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:170px;z-index:60;overflow:hidden">
           <a id="menuPass" style="display:block;padding:11px 15px;cursor:pointer;font-size:14px;color:var(--ink)">🔑 เปลี่ยนรหัสผ่าน</a>
@@ -75,6 +78,7 @@
   document.getElementById('logoTop').src   = window.LOGO_MARK;
   document.getElementById('logoSide').src  = window.LOGO_MARK;
 </script>
+<script src="i18n.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
