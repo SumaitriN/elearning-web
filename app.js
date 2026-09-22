@@ -75,12 +75,13 @@ function setActiveNav(name) {
 // ---------- เราเตอร์ ----------
 async function go(name, arg) {
   const v = $('#view');
-  if (['home', 'lessons', 'quizzes', 'admin'].includes(name)) setActiveNav(name);
+  if (['home', 'lessons', 'quizzes', 'account', 'admin'].includes(name)) setActiveNav(name);
   if (name === 'home') return renderHome(v);
   if (name === 'lessons') return renderList(v, 'lesson');
   if (name === 'quizzes') return renderList(v, 'quiz');
   if (name === 'lesson') return renderLesson(v, arg);
   if (name === 'quiz') return renderQuiz(v, arg);
+  if (name === 'account') return renderAccount(v);
   if (name === 'admin') return renderAdmin(v);
 }
 
@@ -233,6 +234,32 @@ async function renderQuiz(v, id) {
   start();
 }
 function fmt(s) { const m = String(Math.floor(s / 60)).padStart(2, '0'), ss = String(s % 60).padStart(2, '0'); return `${m}:${ss}`; }
+
+// ---------- เปลี่ยนรหัสผ่าน ----------
+function renderAccount(v) {
+  v.innerHTML = `<h1>เปลี่ยนรหัสผ่าน</h1>
+    <div class="card" style="max-width:420px">
+      <div class="field"><label>รหัสผ่านปัจจุบัน</label><input id="pOld" type="password" autocomplete="current-password"></div>
+      <div class="field"><label>รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)</label><input id="pNew" type="password" autocomplete="new-password"></div>
+      <div class="field"><label>ยืนยันรหัสผ่านใหม่</label><input id="pNew2" type="password" autocomplete="new-password"></div>
+      <div class="login-err" id="pErr" style="margin:0 0 10px"></div>
+      <button class="btn btn-primary" id="pBtn">บันทึกรหัสผ่านใหม่</button>
+    </div>`;
+  $('#pBtn').addEventListener('click', async () => {
+    const err = $('#pErr'); err.style.color = 'var(--danger)';
+    const o = $('#pOld').value, n = $('#pNew').value, n2 = $('#pNew2').value;
+    if (n.length < 6) { err.textContent = 'รหัสผ่านใหม่อย่างน้อย 6 ตัวอักษร'; return; }
+    if (n !== n2) { err.textContent = 'รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน'; return; }
+    const btn = $('#pBtn'); btn.disabled = true; err.textContent = '';
+    try {
+      await rpc('app_change_password', { p_old: o, p_new: n });
+      err.style.color = 'var(--success)'; err.textContent = 'เปลี่ยนรหัสผ่านเรียบร้อย ✓';
+      $('#pOld').value = $('#pNew').value = $('#pNew2').value = '';
+    } catch (e) {
+      err.textContent = String(e.message || '').includes('wrong_old') ? 'รหัสผ่านปัจจุบันไม่ถูกต้อง' : 'เปลี่ยนไม่สำเร็จ ลองใหม่';
+    } finally { btn.disabled = false; }
+  });
+}
 
 // ---------- แอดมิน: สร้างผู้ใช้ ----------
 function renderAdmin(v) {
