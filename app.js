@@ -78,10 +78,11 @@ function setActiveNav(name) {
 // ---------- เราเตอร์ ----------
 async function go(name, arg) {
   const v = $('#view');
-  if (['home', 'lessons', 'quizzes', 'account', 'assign', 'progress', 'dashboard', 'cert', 'managelessons', 'admin'].includes(name)) setActiveNav(name);
+  if (['home', 'lessons', 'quizzes', 'typing', 'account', 'assign', 'progress', 'dashboard', 'cert', 'managelessons', 'admin'].includes(name)) setActiveNav(name);
   if (name === 'home') return renderHome(v);
   if (name === 'lessons') return renderList(v, 'lesson');
   if (name === 'quizzes') return renderList(v, 'quiz');
+  if (name === 'typing') return renderTyping(v);
   if (name === 'lesson') return renderLesson(v, arg);
   if (name === 'quiz') return renderQuiz(v, arg);
   if (name === 'account') return renderAccount(v);
@@ -351,6 +352,74 @@ const teamName = (id) => (CATALOG.teams.find(t => t.id === id) || {}).name || ''
 const teamOpts = (cur) => (CATALOG.teams || []).map(t => `<option value="${t.id}" ${cur === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
 const teamKeyOf = (id) => { const n = teamName(id); return /Makro/i.test(n) ? 'Makro' : /Lotus/i.test(n) ? 'Lotus' : 'Center'; };
 
+// ---------- ข้อสอบพิมพ์ดีด ----------
+const TYPING_SECS = 60;
+const TYPING = [
+  { id: 'th1', lang: 'th', title: 'พิมพ์ดีดไทย — ชุดที่ 1', text: 'การพิมพ์ดีดเป็นทักษะสำคัญในการทำงานยุคปัจจุบัน การฝึกฝนอย่างสม่ำเสมอจะช่วยให้พิมพ์ได้เร็วและแม่นยำมากขึ้น ควรวางนิ้วให้ถูกตำแหน่งและมองที่หน้าจอแทนการมองแป้นพิมพ์' },
+  { id: 'th2', lang: 'th', title: 'พิมพ์ดีดไทย — ชุดที่ 2', text: 'บริษัท ดิจิเซิร์ฟ คอร์ปอเรชัน มุ่งมั่นพัฒนาบุคลากรให้มีความสามารถรอบด้าน การสื่อสารที่รวดเร็วและถูกต้องเป็นหัวใจของงานบริการลูกค้า พนักงานทุกคนควรฝึกพิมพ์ให้คล่องเพื่อเพิ่มประสิทธิภาพในการทำงาน' },
+  { id: 'en1', lang: 'en', title: 'Typing Test (English) — Set 1', text: 'The quick brown fox jumps over the lazy dog. Practice typing every day to improve your speed and accuracy. Good posture and correct finger placement are the keys to becoming a fast and confident typist.' },
+  { id: 'en2', lang: 'en', title: 'Typing Test (English) — Set 2', text: 'Digiserve Corporation is committed to developing skilled and reliable teams. Clear and quick communication is the heart of great customer service. Keep practicing to type faster while keeping your accuracy high.' }
+];
+async function renderTyping(v) {
+  v.innerHTML = `<h1>ข้อสอบพิมพ์ดีด</h1><div class="muted">กำลังโหลด...</div>`;
+  let best = {};
+  try { (await rpc('app_typing_mine')).forEach(r => best[r.set] = r); } catch (_) {}
+  v.innerHTML = `<h1>ข้อสอบพิมพ์ดีด</h1>
+    <p class="muted">พิมพ์ตามข้อความให้เร็วและแม่นยำที่สุดใน ${TYPING_SECS} วินาที · วัดผลเป็น WPM (คำ/นาที) และความแม่นยำ</p>
+    <div class="grid">${TYPING.map(t => `<div class="tile" data-id="${t.id}"><div class="k">${t.lang === 'th' ? 'ภาษาไทย' : 'English'}</div><div class="t">${esc(t.title)}</div>
+      <div class="m">${best[t.id] ? `สถิติดีสุด: ${best[t.id].wpm} WPM · แม่นยำ ${best[t.id].acc}%` : 'ยังไม่เคยทำ'}</div></div>`).join('')}</div>`;
+  v.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => runTyping(v, TYPING.find(t => t.id === el.getAttribute('data-id')))));
+}
+function runTyping(v, set) {
+  const target = set.text; let t0 = null, done = false, iv = null;
+  function calc(val) {
+    let correct = 0; for (let i = 0; i < val.length && i < target.length; i++) if (val[i] === target[i]) correct++;
+    const el = t0 ? Math.min((Date.now() - t0) / 1000, TYPING_SECS) : 0;
+    const wpm = el > 0 ? Math.round((correct / 5) / (el / 60)) : 0;
+    const acc = val.length ? Math.round(correct / Math.min(val.length, target.length) * 100) : 100;
+    return { el, wpm, acc, correct };
+  }
+  function finish() {
+    if (done) return; done = true; clearInterval(iv);
+    const c = calc($('#tyInput').value);
+    rpc('app_typing_submit', { p_set: set.id, p_lang: set.lang, p_wpm: c.wpm, p_acc: c.acc, p_chars: c.correct, p_secs: Math.round(c.el) }).catch(() => {});
+    v.innerHTML = `<div class="card" style="text-align:center">
+      <div class="eyebrow">${esc(set.title)}</div>
+      <div style="font-size:54px;font-weight:700;color:var(--teal-700)">${c.wpm} <span style="font-size:22px">WPM</span></div>
+      <div class="muted">ความแม่นยำ ${c.acc}% · เวลา ${Math.round(c.el)} วินาที</div>
+      <p style="font-weight:600;color:var(--success)">บันทึกผลเรียบร้อย ✓</p></div>
+      <div style="text-align:center;display:flex;gap:10px;justify-content:center">
+        <button class="btn btn-ghost" id="tyBack">กลับ</button>
+        <button class="btn btn-primary" id="tyRetry">ทำอีกครั้ง</button></div>`;
+    $('#tyBack').addEventListener('click', () => renderTyping(v));
+    $('#tyRetry').addEventListener('click', () => runTyping(v, set));
+  }
+  v.innerHTML = `<a class="muted" style="cursor:pointer" id="tyExit">← กลับ</a>
+    <h1>${esc(set.title)}</h1>
+    <div style="display:flex;gap:16px;margin-bottom:10px">
+      <span class="timer" id="tyTime">${TYPING_SECS}.0</span>
+      <span class="timer" style="background:#fff">WPM: <b id="tyWpm">0</b></span>
+      <span class="timer" style="background:#fff">แม่นยำ: <b id="tyAcc">100</b>%</span></div>
+    <div class="lessontext" style="line-height:2;font-size:17px;user-select:none" id="tyTarget">${esc(target)}</div>
+    <textarea id="tyInput" rows="4" placeholder="เริ่มพิมพ์ที่นี่ (จับเวลาเมื่อพิมพ์ตัวแรก)" style="width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:16px;box-sizing:border-box"></textarea>
+    <div style="text-align:right;margin-top:10px"><button class="btn btn-teal" id="tyDone">ส่งผล</button></div>`;
+  $('#tyExit').addEventListener('click', () => renderTyping(v));
+  $('#tyDone').addEventListener('click', finish);
+  const inp = $('#tyInput'); inp.focus();
+  inp.addEventListener('input', () => {
+    if (!t0) {
+      t0 = Date.now();
+      iv = setInterval(() => {
+        const c = calc(inp.value); const left = Math.max(0, TYPING_SECS - c.el);
+        $('#tyTime').textContent = left.toFixed(1); $('#tyWpm').textContent = c.wpm; $('#tyAcc').textContent = c.acc;
+        if (left <= 0) finish();
+      }, 100);
+    }
+    const c = calc(inp.value); $('#tyWpm').textContent = c.wpm; $('#tyAcc').textContent = c.acc;
+    if (inp.value.length >= target.length) finish();
+  });
+}
+
 // ---------- มอบหมายงาน ----------
 async function renderAssign(v) {
   if (ME.role !== 'admin') { v.innerHTML = `<div class="card">เฉพาะผู้ดูแลระบบ</div>`; return; }
@@ -425,16 +494,45 @@ async function renderProgress(v) {
   draw();
 }
 
-// ---------- ใบประกาศ ----------
+// ---------- ใบประกาศ (ดีไซน์เดิม SVG) ----------
+function fmtMonthYear(dateStr) { const d = new Date(dateStr); if (isNaN(d)) return dateStr || ''; return d.toLocaleDateString('en-US', { month: 'long' }) + ', ' + d.getFullYear(); }
+function certSvg(c) {
+  const GOLD = '#C19A43', GOLD2 = '#B8902F', CHAR = '#3B3B3B', NAVY = '#2B3640', BLACK = '#1d1d1d', TEAL = '#5AA7B8', TEALD = '#3E8DA0', ORANGE = '#EC8B3C';
+  const corner = `<path d="M 372,0 C 392,340 278,592 0,672 L 0,556 C 256,476 328,300 276,0 Z" fill="${TEAL}" opacity="0.85"/><path d="M 256,0 C 274,306 178,528 0,590 L 0,518 C 154,462 214,298 172,0 Z" fill="${ORANGE}"/><path d="M 150,0 C 164,250 96,432 0,474 L 0,424 C 96,388 142,256 112,0 Z" fill="${TEALD}" opacity="0.5"/>`;
+  return `<svg viewBox="0 0 2000 1414" xmlns="http://www.w3.org/2000/svg" font-family="Georgia, serif" style="width:100%;height:auto;display:block;box-shadow:0 6px 22px rgba(0,0,0,.14);border-radius:4px;background:#fff">
+    <rect width="2000" height="1414" fill="#ffffff"/>
+    <g>${corner}</g><g transform="rotate(180 1000 707)">${corner}</g>
+    <path d="M 845,72 L 1928,72 L 1928,648" fill="none" stroke="${GOLD}" stroke-width="7"/>
+    <path d="M 1155,1342 L 72,1342 L 72,766" fill="none" stroke="${GOLD}" stroke-width="7"/>
+    <g transform="translate(892 44) scale(0.545)">
+      <path d="M 150,20 C 210,40 268,84 304,138 C 316,157 313,170 297,186 C 238,230 180,262 132,293 C 146,200 149,110 150,20 Z" fill="#26B6BE"/>
+      <path d="M 132,293 C 96,220 82,135 108,66 C 116,44 138,36 150,52 C 150,120 149,205 132,293 Z" fill="#F2871E"/>
+      <path d="M 150,50 C 151,120 150,205 133,292 C 141,205 139,120 140,52 C 143,49 147,49 150,50 Z" fill="#FBB315"/></g>
+    <text x="1000" y="292" text-anchor="middle" font-size="46" font-weight="700" fill="${NAVY}" letter-spacing="3">DIGISERVE</text>
+    <text x="1000" y="326" text-anchor="middle" font-size="20" fill="#5A6670" letter-spacing="9">CORPORATION</text>
+    <text x="1000" y="442" text-anchor="middle" font-size="38" font-weight="700" fill="${GOLD2}">${esc(c.monthYear)}</text>
+    <text x="1000" y="528" text-anchor="middle" font-size="50" font-weight="700" fill="${CHAR}" letter-spacing="2">${esc(c.title1)}</text>
+    <text x="1000" y="638" text-anchor="middle" font-size="86" font-weight="700" fill="${GOLD}">${esc(c.title2)}</text>
+    <text x="1000" y="716" text-anchor="middle" font-size="32" font-weight="700" fill="${BLACK}" letter-spacing="2">THIS CERTIFICATE IS PRESENTED TO</text>
+    <text x="1000" y="840" text-anchor="middle" font-size="62" font-style="italic" fill="${NAVY}">${esc(c.name)}</text>
+    <line x1="360" y1="884" x2="1640" y2="884" stroke="${GOLD}" stroke-width="3"/>
+    <line x1="820" y1="1116" x2="1180" y2="1116" stroke="${GOLD}" stroke-width="3"/>
+    <text x="1000" y="1176" text-anchor="middle" font-size="36" font-weight="700" fill="${NAVY}">Anuchit Khamnoi</text>
+    <text x="1000" y="1228" text-anchor="middle" font-size="30" fill="#333333">Chief Executive Officer</text>
+    <text x="1000" y="1272" text-anchor="middle" font-size="28" fill="${NAVY}" letter-spacing="1">DIGISERVE CORPORATION CO., LTD.</text>
+    <text x="96" y="1378" font-size="20" fill="#a7a7a7" letter-spacing="1">${esc(String(c.no))}</text></svg>`;
+}
 async function renderCerts(v) {
   if (ME.role !== 'admin') { v.innerHTML = `<div class="card">เฉพาะผู้ดูแลระบบ</div>`; return; }
   v.innerHTML = `<h1>ใบประกาศ</h1><div class="muted">กำลังโหลด...</div>`;
   const users = await rpc('app_admin_list_users', {});
+  const inp = 'width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-family:inherit';
   function draw() {
     v.innerHTML = `<h1>ใบประกาศ</h1>
-      <div class="card" style="max-width:560px"><h2>ออกใบประกาศ</h2>
-        <div class="field"><label>ผู้รับ</label><select id="cUser" style="${SS};width:100%">${users.map(u => `<option value="${u.id}">${esc(u.name || u.email)} (${esc(u.email)})</option>`).join('')}</select></div>
-        <div class="field"><label>หัวข้อ/หลักสูตร</label><input id="cTitle" value="ผ่านการอบรมปฐมนิเทศ (Orientation)"></div>
+      <div class="card" style="max-width:600px"><h2>ออกใบประกาศ</h2>
+        <div class="field"><label>ผู้รับ</label><select id="cUser" style="${inp}">${users.map(u => `<option value="${u.id}">${esc(u.name || u.email)} (${esc(u.email)})</option>`).join('')}</select></div>
+        <div class="field"><label>บรรทัดที่ 1 (หัวข้อ)</label><input id="cT1" style="${inp}" value="CERTIFICATE OF COMPLETION"></div>
+        <div class="field"><label>บรรทัดที่ 2 (หลักสูตร/รางวัล — ตัวใหญ่สีทอง)</label><input id="cT2" style="${inp}" value="ผ่านการอบรมปฐมนิเทศ (Orientation)"></div>
         <div class="login-err" id="cErr" style="margin:0 0 10px"></div>
         <button class="btn btn-primary" id="cBtn">ออกใบประกาศ</button>
       </div>
@@ -442,30 +540,30 @@ async function renderCerts(v) {
       <div class="card"><h2>ใบประกาศที่ออกแล้ว</h2><div id="cList" class="muted">กำลังโหลด...</div></div>`;
     $('#cBtn').addEventListener('click', async () => {
       const btn = $('#cBtn'); btn.disabled = true;
+      const t1 = $('#cT1').value.trim(), t2 = $('#cT2').value.trim();
       try {
-        const r = await rpc('app_admin_issue_cert', { p_user_id: $('#cUser').value, p_title: $('#cTitle').value.trim() });
-        showCert(r); loadList();
+        const r = await rpc('app_admin_issue_cert', { p_user_id: $('#cUser').value, p_title: t1 + '|||' + t2 });
+        showCert({ no: r.no, name: r.name, title1: t1, title2: t2, monthYear: fmtMonthYear(r.date) }); loadList();
       } catch (e) { $('#cErr').textContent = 'ออกใบประกาศไม่สำเร็จ'; } finally { btn.disabled = false; }
     });
     loadList();
   }
-  function showCert(r) {
-    const d = new Date(r.date); const ds = isNaN(d) ? r.date : d.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
-    $('#cView').innerHTML = `<div class="card" style="text-align:center;border:3px solid var(--teal);padding:34px" id="certBox">
-      <div style="color:var(--orange);font-weight:700;letter-spacing:.1em">CERTIFICATE · ใบประกาศนียบัตร</div>
-      <h2 style="font-size:22px;margin:16px 0 6px">ขอมอบให้เพื่อแสดงว่า</h2>
-      <div style="font-size:28px;font-weight:700;color:var(--teal-700);margin:8px 0">${esc(r.name)}</div>
-      <div style="margin:6px 0 14px">${esc(r.title)}</div>
-      <div class="muted">เลขที่ ${r.no} · ออกให้ ณ วันที่ ${ds}</div>
-      <div style="margin-top:22px"><b>E-Learning Platform</b></div></div>
-      <div style="text-align:center;margin-bottom:16px"><button class="btn btn-teal" onclick="window.print()">🖨 พิมพ์ / บันทึกเป็น PDF</button></div>`;
+  function showCert(c) {
+    $('#cView').innerHTML = `<div class="card" style="padding:16px">${certSvg(c)}</div>
+      <div style="text-align:center;margin-bottom:16px"><button class="btn btn-teal" id="cPrint">🖨 พิมพ์ / บันทึกเป็น PDF</button></div>`;
+    $('#cPrint').addEventListener('click', () => {
+      const w = window.open('', '_blank');
+      w.document.write(`<html><head><title>Certificate ${esc(String(c.no))}</title><style>@page{size:landscape}body{margin:0}svg{width:100%;height:auto}</style></head><body>${certSvg(c)}</body></html>`);
+      w.document.close(); setTimeout(() => w.print(), 300);
+    });
     $('#cView').scrollIntoView({ behavior: 'smooth' });
   }
   async function loadList() {
     const rows = await rpc('app_admin_certs'); const el = $('#cList'); if (!el) return;
     el.innerHTML = rows.length ? `<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="background:#f0faf9;color:var(--teal-700)"><th style="padding:8px 10px">เลขที่</th><th style="text-align:left;padding:8px 10px">ชื่อ</th><th style="text-align:left;padding:8px 10px">หลักสูตร</th><th style="padding:8px 10px">วันที่</th></tr></thead>
-      <tbody>${rows.map(r => `<tr style="border-top:1px solid var(--line)"><td style="padding:7px 10px;text-align:center">${r.no}</td><td style="padding:7px 10px">${esc(r.name)}</td><td style="padding:7px 10px">${esc(r.title || '')}</td><td style="padding:7px 10px;text-align:center">${r.date}</td></tr>`).join('')}</tbody></table></div>` : `<div class="muted">ยังไม่มีใบประกาศ</div>`;
+      <thead><tr style="background:#f0faf9;color:var(--teal-700)"><th style="padding:8px 10px">เลขที่</th><th style="text-align:left;padding:8px 10px">ชื่อ</th><th style="text-align:left;padding:8px 10px">หลักสูตร</th><th style="padding:8px 10px">วันที่</th><th style="padding:8px 10px"></th></tr></thead>
+      <tbody>${rows.map(r => { const p = String(r.title || '').split('|||'); return `<tr style="border-top:1px solid var(--line)"><td style="padding:7px 10px;text-align:center">${r.no}</td><td style="padding:7px 10px">${esc(r.name)}</td><td style="padding:7px 10px">${esc(p[1] || p[0] || '')}</td><td style="padding:7px 10px;text-align:center">${r.date}</td><td style="padding:7px 10px;text-align:center"><button class="btn btn-ghost cOpen" data-no="${r.no}" data-name="${esc(r.name)}" data-t1="${esc(p[0] || '')}" data-t2="${esc(p[1] || '')}" data-date="${r.date}" style="padding:5px 10px">เปิด</button></td></tr>`; }).join('')}</tbody></table></div>` : `<div class="muted">ยังไม่มีใบประกาศ</div>`;
+    v.querySelectorAll('.cOpen').forEach(b => b.addEventListener('click', () => showCert({ no: b.getAttribute('data-no'), name: b.getAttribute('data-name'), title1: b.getAttribute('data-t1'), title2: b.getAttribute('data-t2'), monthYear: fmtMonthYear(b.getAttribute('data-date')) })));
   }
   draw();
 }
