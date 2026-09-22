@@ -346,6 +346,7 @@ async function renderDashboard(v) {
 const SS = 'padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px';
 const teamName = (id) => (CATALOG.teams.find(t => t.id === id) || {}).name || '';
 const teamOpts = (cur) => (CATALOG.teams || []).map(t => `<option value="${t.id}" ${cur === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
+const teamKeyOf = (id) => { const n = teamName(id); return /Makro/i.test(n) ? 'Makro' : /Lotus/i.test(n) ? 'Lotus' : 'Center'; };
 
 // ---------- มอบหมายงาน ----------
 async function renderAssign(v) {
@@ -481,10 +482,12 @@ async function renderManageLessons(v) {
         <tbody>${cat.lessons.length ? cat.lessons.map(l => `<tr style="border-top:1px solid var(--line)">
           <td style="padding:8px 12px">${esc(l.section || '')}</td><td style="padding:8px 12px">${esc(l.title)}</td>
           <td style="padding:8px 12px;text-align:center;white-space:nowrap">
+            <button class="btn btn-teal mBlocks" data-id="${l.id}" data-title="${esc(l.title)}" data-section="${esc(l.section || '')}" style="padding:6px 12px">แก้เนื้อหา</button>
             <button class="btn btn-ghost mEdit" data-id="${l.id}" data-title="${esc(l.title)}" data-section="${esc(l.section || '')}" style="padding:6px 12px">แก้ชื่อ</button>
-            <button class="btn mDel" data-id="${l.id}" data-title="${esc(l.title)}" style="padding:6px 12px;background:#FBEAEA;color:var(--danger)">ลบ</button></td></tr>`).join('') : `<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--muted)">ไม่มีบทเรียน</td></tr>`}</tbody></table></div>
-      <p class="muted" style="font-size:13px">* แก้ไขเนื้อหาในบท (สไลด์/วิดีโอ/ข้อความ) ทำผ่านคลังบทเรียนเดิมแล้วนำเข้าซ้ำได้ หรือแจ้งผมเพิ่มตัวแก้บล็อกในเว็บ</p>`;
+            <button class="btn mDel" data-id="${l.id}" data-title="${esc(l.title)}" style="padding:6px 12px;background:#FBEAEA;color:var(--danger)">ลบ</button></td></tr>`).join('') : `<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--muted)">ไม่มีบทเรียน</td></tr>`}</tbody></table></div>`;
     $('#mTeam').addEventListener('change', e => { team = e.target.value; draw(); });
+    v.querySelectorAll('.mBlocks').forEach(b => b.addEventListener('click', () =>
+      renderBlockEditor(v, b.getAttribute('data-id'), b.getAttribute('data-title'), b.getAttribute('data-section'), teamKeyOf(team), () => draw())));
     v.querySelectorAll('.mEdit').forEach(b => b.addEventListener('click', async () => {
       const nt = prompt('ชื่อบทเรียน:', b.getAttribute('data-title')); if (nt === null) return;
       const ns = prompt('หมวด/Section:', b.getAttribute('data-section')); if (ns === null) return;
@@ -494,6 +497,74 @@ async function renderManageLessons(v) {
       if (!confirm('ลบบทเรียน "' + b.getAttribute('data-title') + '" ?\n(ลบเนื้อหาทั้งบท)')) return;
       await rpc('app_admin_delete_lesson', { p_lesson_id: b.getAttribute('data-id') }); draw();
     }));
+  }
+  draw();
+}
+
+// ---------- ตัวแก้เนื้อหาบทเรียน (block editor) ----------
+async function renderBlockEditor(v, lessonId, title, section, teamKey, onBack) {
+  v.innerHTML = `<div class="muted">กำลังโหลด...</div>`;
+  const d = await rpc('app_lesson', { p_lesson: lessonId });
+  const state = { blocks: (d.blocks || []).map(b => ({ type: b.type, content: b.content || '', url: b.url || '', question: b.question || '', choices: b.choices || [], answer: b.answer, explain: b.explain || '' })) };
+  const ta = 'width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px;box-sizing:border-box';
+  function sync() {
+    state.blocks = [...v.querySelectorAll('[data-blk]')].map(el => {
+      const type = el.querySelector('.bType').value; const b = { type };
+      if (type === 'text') b.content = el.querySelector('.bContent').value;
+      else if (['video', 'image', 'slides'].includes(type)) b.url = el.querySelector('.bUrl').value;
+      else if (type === 'check') {
+        b.question = el.querySelector('.bQ').value;
+        b.choices = el.querySelector('.bChoices').value.split('\n').map(s => s.trim()).filter(Boolean);
+        b.answer = (parseInt(el.querySelector('.bAns').value) || 1) - 1;
+        b.explain = el.querySelector('.bExplain').value;
+      }
+      return b;
+    });
+  }
+  function fields(b) {
+    const to = (t) => `<option value="${t}" ${b.type === t ? 'selected' : ''}>`;
+    const sel = `<select class="bType" style="${SS};margin-bottom:8px">${to('text')}ข้อความ</option>${to('video')}วิดีโอ (YouTube)</option>${to('image')}รูปภาพ (URL)</option>${to('slides')}สไลด์ (Google Slides)</option>${to('check')}เช็คความเข้าใจ</option></select>`;
+    let f = '';
+    if (b.type === 'text') f = `<textarea class="bContent" rows="4" style="${ta}" placeholder="เนื้อหาข้อความ">${esc(b.content)}</textarea>`;
+    else if (b.type === 'video') f = `<input class="bUrl" style="${ta}" placeholder="ลิงก์ YouTube" value="${esc(b.url)}">`;
+    else if (b.type === 'image') f = `<input class="bUrl" style="${ta}" placeholder="URL รูปภาพ" value="${esc(b.url)}">`;
+    else if (b.type === 'slides') f = `<input class="bUrl" style="${ta}" placeholder="ลิงก์ Google Slides" value="${esc(b.url)}">`;
+    else if (b.type === 'check') f = `
+      <input class="bQ" style="${ta};margin-bottom:6px" placeholder="คำถาม" value="${esc(b.question)}">
+      <textarea class="bChoices" rows="3" style="${ta};margin-bottom:6px" placeholder="ตัวเลือก (บรรทัดละ 1 ข้อ)">${esc((b.choices || []).join('\n'))}</textarea>
+      <div style="display:flex;gap:8px"><input class="bAns" type="number" min="1" style="${SS};width:150px" placeholder="ข้อที่ถูก (1-N)" value="${(b.answer ?? 0) + 1}">
+      <input class="bExplain" style="${ta}" placeholder="คำอธิบายเฉลย" value="${esc(b.explain)}"></div>`;
+    return sel + f;
+  }
+  function draw() {
+    v.innerHTML = `<a class="muted" style="cursor:pointer" id="beBack">← กลับ</a>
+      <h1>แก้เนื้อหา: ${esc(title)}</h1>
+      <div id="beList">${state.blocks.map((b, i) => `
+        <div class="card" data-blk data-idx="${i}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <b class="muted">บล็อก ${i + 1}</b>
+            <span>
+              <button class="btn btn-ghost bUp" data-i="${i}" style="padding:4px 10px" ${i === 0 ? 'disabled' : ''}>↑</button>
+              <button class="btn btn-ghost bDown" data-i="${i}" style="padding:4px 10px" ${i === state.blocks.length - 1 ? 'disabled' : ''}>↓</button>
+              <button class="btn bDelBlk" data-i="${i}" style="padding:4px 10px;background:#FBEAEA;color:var(--danger)">ลบ</button>
+            </span></div>
+          ${fields(b)}
+        </div>`).join('')}</div>
+      <div style="display:flex;gap:10px;margin-bottom:20px">
+        <button class="btn btn-ghost" id="beAdd">+ เพิ่มบล็อก</button>
+        <button class="btn btn-primary" id="beSave" style="margin-left:auto">💾 บันทึกเนื้อหา</button></div>
+      <div class="login-err" id="beMsg"></div>`;
+    $('#beBack').addEventListener('click', onBack);
+    $('#beAdd').addEventListener('click', () => { sync(); state.blocks.push({ type: 'text', content: '', choices: [] }); draw(); });
+    v.querySelectorAll('.bType').forEach((s, i) => s.addEventListener('change', () => { sync(); state.blocks[i].type = s.value; draw(); }));
+    v.querySelectorAll('.bUp').forEach(b => b.addEventListener('click', () => { sync(); const i = +b.getAttribute('data-i'); [state.blocks[i - 1], state.blocks[i]] = [state.blocks[i], state.blocks[i - 1]]; draw(); }));
+    v.querySelectorAll('.bDown').forEach(b => b.addEventListener('click', () => { sync(); const i = +b.getAttribute('data-i'); [state.blocks[i + 1], state.blocks[i]] = [state.blocks[i], state.blocks[i + 1]]; draw(); }));
+    v.querySelectorAll('.bDelBlk').forEach(b => b.addEventListener('click', () => { sync(); state.blocks.splice(+b.getAttribute('data-i'), 1); draw(); }));
+    $('#beSave').addEventListener('click', async () => {
+      sync(); const btn = $('#beSave'); btn.disabled = true; const m = $('#beMsg');
+      try { await rpc('app_admin_save_blocks', { p_lesson_id: lessonId, p_blocks: state.blocks }); m.style.color = 'var(--success)'; m.textContent = 'บันทึกเรียบร้อย ✓'; }
+      catch (e) { m.style.color = 'var(--danger)'; m.textContent = 'บันทึกไม่สำเร็จ'; } finally { btn.disabled = false; }
+    });
   }
   draw();
 }
