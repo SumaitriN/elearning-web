@@ -78,7 +78,7 @@ function setActiveNav(name) {
 // ---------- เราเตอร์ ----------
 async function go(name, arg) {
   const v = $('#view');
-  if (['home', 'lessons', 'quizzes', 'typing', 'account', 'assign', 'progress', 'dashboard', 'cert', 'managelessons', 'admin'].includes(name)) setActiveNav(name);
+  if (['home', 'lessons', 'quizzes', 'typing', 'account', 'assign', 'progress', 'dashboard', 'questions', 'cert', 'managelessons', 'admin'].includes(name)) setActiveNav(name);
   if (name === 'home') return renderHome(v);
   if (name === 'lessons') return renderList(v, 'lesson');
   if (name === 'quizzes') return renderList(v, 'quiz');
@@ -89,6 +89,7 @@ async function go(name, arg) {
   if (name === 'assign') return renderAssign(v);
   if (name === 'progress') return renderProgress(v);
   if (name === 'dashboard') return renderDashboard(v);
+  if (name === 'questions') return renderQuestions(v);
   if (name === 'cert') return renderCerts(v);
   if (name === 'managelessons') return renderManageLessons(v);
   if (name === 'admin') return renderAdmin(v);
@@ -284,6 +285,157 @@ function renderAccount(v) {
 }
 
 // ---------- แดชบอร์ดผลสอบ (แอดมิน) ----------
+// ---------- วิเคราะห์รายข้อ: ใครทำผิดข้อไหน ----------
+async function renderQuestions(v) {
+  if (ME.role !== 'admin') { v.innerHTML = `<div class="card">เฉพาะผู้ดูแลระบบ</div>`; return; }
+  v.innerHTML = `<h1>วิเคราะห์รายข้อ</h1><div class="muted">กำลังโหลด...</div>`;
+  const keyOf = n => /Makro/i.test(n) ? 'Makro' : /Lotus/i.test(n) ? 'Lotus' : 'Center';
+  let stats;
+  try { stats = await rpc('app_admin_qstats', {}); } catch (e) { v.innerHTML = `<div class="card">โหลดข้อมูลไม่สำเร็จ</div>`; return; }
+  if (!stats.length) { v.innerHTML = `<h1>วิเคราะห์รายข้อ</h1><div class="card">ยังไม่มีข้อมูลคำตอบรายข้อ — เมื่อมีผู้ทำข้อสอบผ่านเว็บ หรือหลังนำเข้าประวัติเก่า ข้อมูลจะแสดงที่นี่</div>`; return; }
+  // รายการชุดสอบ (team ▸ quiz)
+  const combos = [];
+  stats.forEach(s => { const k = (s.team || '-') + ' ▸ ' + s.quiz; if (!combos.some(c => c.k === k)) combos.push({ k, team: s.team, quiz: s.quiz }); });
+  const ss = 'padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px';
+  const state = { i: 0, sort: 'qno', person: null, detail: null, tab: 'q' };
+
+  function bar(pct) {
+    const c = pct >= 80 ? '#16a34a' : pct >= 50 ? '#F68920' : '#e05252';
+    return `<div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:9px;background:#eef1f2;border-radius:6px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c}"></div></div><b style="min-width:44px;text-align:right;color:${c}">${pct}%</b></div>`;
+  }
+
+  async function draw() {
+    const combo = combos[state.i];
+    const qrows = stats.filter(s => s.team === combo.team && s.quiz === combo.quiz);
+    let qs = qrows.slice();
+    if (state.sort === 'worst') qs.sort((a, b) => a.pct - b.pct);
+    else qs.sort((a, b) => a.qno - b.qno);
+    const nResp = qrows.length ? Math.max(...qrows.map(r => r.n)) : 0;
+    const avgCorrect = qrows.length ? Math.round(qrows.reduce((a, r) => a + (+r.pct || 0), 0) / qrows.length * 10) / 10 : 0;
+    const hard = qrows.filter(r => r.pct < 50).length;
+
+    v.innerHTML = `<h1>วิเคราะห์รายข้อ</h1>
+      <div class="muted" style="margin-top:-6px;margin-bottom:12px">ตรวจว่าแต่ละข้อคนตอบถูกกี่ % และใครทำผิดข้อไหน</div>
+      <div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <span class="muted">ชุดข้อสอบ:</span>
+        <select id="qCombo" style="${ss};min-width:240px">${combos.map((c, i) => `<option value="${i}" ${i === state.i ? 'selected' : ''}>${esc(c.k)}</option>`).join('')}</select>
+        <div style="flex:1"></div>
+        <button class="btn ${state.tab === 'q' ? 'btn-teal' : 'btn-ghost'}" id="tabQ">สรุปรายข้อ</button>
+        <button class="btn ${state.tab === 'p' ? 'btn-teal' : 'btn-ghost'}" id="tabP">รายคน</button>
+      </div>
+      <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:6px">
+        <div class="tile" style="border-left:5px solid #198E8F"><div class="k">ผู้เข้าสอบ</div><div class="t" style="font-size:28px">${nResp}</div><div class="m">คนในชุดนี้</div></div>
+        <div class="tile" style="border-left:5px solid #21BDBE"><div class="k">ตอบถูกเฉลี่ย</div><div class="t" style="font-size:28px">${avgCorrect}%</div><div class="m">ทุกข้อรวมกัน</div></div>
+        <div class="tile" style="border-left:5px solid #e05252"><div class="k">ข้อที่ยาก</div><div class="t" style="font-size:28px">${hard}</div><div class="m">ถูกต่ำกว่า 50%</div></div>
+      </div>
+      <div id="qPanel"></div>`;
+
+    $('#qCombo').addEventListener('change', e => { state.i = +e.target.value; state.person = null; state.detail = null; draw(); });
+    $('#tabQ').addEventListener('click', () => { state.tab = 'q'; draw(); });
+    $('#tabP').addEventListener('click', () => { state.tab = 'p'; draw(); });
+
+    const panel = $('#qPanel');
+    if (state.tab === 'q') {
+      panel.innerHTML = `
+        <div class="card" style="display:flex;gap:10px;align-items:center">
+          <span class="muted">เรียงตาม:</span>
+          <select id="qSort" style="${ss}"><option value="qno" ${state.sort === 'qno' ? 'selected' : ''}>ลำดับข้อ</option><option value="worst" ${state.sort === 'worst' ? 'selected' : ''}>ยากที่สุดก่อน</option></select>
+          <div style="flex:1"></div>
+          <button class="btn btn-teal" id="qCsv">⬇ CSV</button>
+        </div>
+        <div class="card" style="padding:0;overflow:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr style="background:#f0faf9;color:var(--teal-700)">
+              <th style="padding:10px 12px;width:52px">ข้อ</th>
+              <th style="text-align:left;padding:10px 12px">คำถาม / เฉลย</th>
+              <th style="padding:10px 12px;width:90px">ตอบ</th>
+              <th style="padding:10px 12px;width:200px">อัตราตอบถูก</th></tr></thead>
+            <tbody>${qs.map(r => `<tr style="border-top:1px solid var(--line)">
+              <td style="padding:8px 12px;text-align:center;font-weight:600">${r.qno}</td>
+              <td style="padding:8px 12px">${esc(r.question || ('ข้อ ' + r.qno))}</td>
+              <td style="padding:8px 12px;text-align:center">${r.n_correct}/${r.n}</td>
+              <td style="padding:8px 12px">${bar(r.pct == null ? 0 : r.pct)}</td></tr>`).join('')}</tbody>
+          </table>
+        </div>`;
+      $('#qSort').addEventListener('change', e => { state.sort = e.target.value; draw(); });
+      $('#qCsv').addEventListener('click', () => {
+        const head = ['ข้อ', 'คำถาม/เฉลย', 'ตอบถูก', 'ตอบทั้งหมด', '%ถูก'];
+        const lines = [head.join(',')].concat(qs.map(r => [r.qno, `"${String(r.question || '').replace(/"/g, '""')}"`, r.n_correct, r.n, r.pct].join(',')));
+        dl(lines.join('\n'), `รายข้อ_${combo.quiz}.csv`);
+      });
+    } else {
+      panel.innerHTML = `<div class="card muted">กำลังโหลดรายคน...</div>`;
+      if (!state.detail || state.detail.team !== combo.team || state.detail.quiz !== combo.quiz) {
+        try {
+          const rows = await rpc('app_admin_qdetail', { p_team: keyOf(combo.team), p_quiz_title: combo.quiz });
+          state.detail = { team: combo.team, quiz: combo.quiz, rows };
+        } catch (e) { panel.innerHTML = `<div class="card">โหลดรายคนไม่สำเร็จ</div>`; return; }
+      }
+      const rows = state.detail.rows;
+      // จัดกลุ่มตามคน
+      const byP = {};
+      rows.forEach(r => { const k = r.email || r.name; (byP[k] = byP[k] || { name: r.name, email: r.email, items: [] }).items.push(r); });
+      const people = Object.values(byP).map(p => {
+        const wrong = p.items.filter(x => !x.ok).sort((a, b) => a.qno - b.qno);
+        return { ...p, total: p.items.length, nwrong: wrong.length, wrong };
+      }).sort((a, b) => b.nwrong - a.nwrong);
+
+      panel.innerHTML = `
+        <div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <input id="pQ" placeholder="ค้นหาชื่อ / อีเมล..." style="${ss};flex:1;min-width:160px">
+          <span class="muted">คลิกที่ชื่อเพื่อดูข้อที่ผิด</span>
+          <div style="flex:1"></div>
+          <button class="btn btn-teal" id="pCsv">⬇ CSV</button>
+        </div>
+        <div class="card" style="padding:0;overflow:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr style="background:#f0faf9;color:var(--teal-700)">
+              <th style="text-align:left;padding:10px 12px">ชื่อ</th>
+              <th style="text-align:left;padding:10px 12px">อีเมล</th>
+              <th style="padding:10px 12px;width:90px">ถูก</th>
+              <th style="text-align:left;padding:10px 12px">ข้อที่ผิด</th></tr></thead>
+            <tbody id="pBody"></tbody>
+          </table>
+        </div>`;
+
+      function renderPeople(filter) {
+        const list = people.filter(p => !filter || (p.name || '').toLowerCase().includes(filter) || (p.email || '').toLowerCase().includes(filter));
+        $('#pBody').innerHTML = list.length ? list.map((p, idx) => {
+          const wrongNos = p.wrong.map(w => w.qno).join(', ');
+          const okc = p.total - p.nwrong;
+          const detail = state.person === (p.email || p.name) ? `<tr style="background:#fff8f8"><td colspan="4" style="padding:0 12px 12px">
+              <div style="font-size:12.5px;color:var(--muted);padding:8px 0">ข้อที่ตอบผิด (${p.nwrong} ข้อ):</div>
+              ${p.wrong.length ? p.wrong.map(w => `<div style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px">
+                <b>ข้อ ${w.qno}.</b> ${esc(w.question || '')}<br>
+                <span style="color:#e05252">ตอบ: ${esc(w.chosen || '(ไม่ได้ตอบ)')}</span></div>`).join('') : '<div class="muted">ทำถูกทุกข้อ 🎉</div>'}
+            </td></tr>` : '';
+          return `<tr class="pRow" data-k="${esc(p.email || p.name)}" style="border-top:1px solid var(--line);cursor:pointer">
+              <td style="padding:8px 12px;font-weight:500">${esc(p.name || '')}</td>
+              <td style="padding:8px 12px;color:var(--muted)">${esc(p.email || '')}</td>
+              <td style="padding:8px 12px;text-align:center"><span class="st ${okc === p.total ? 'ok' : ''}" style="${okc === p.total ? '' : 'background:#FBEAEA;color:var(--danger)'}">${okc}/${p.total}</span></td>
+              <td style="padding:8px 12px;color:#e05252">${wrongNos || '—'}</td></tr>${detail}`;
+        }).join('') : `<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--muted)">ไม่พบ</td></tr>`;
+        $('#pBody').querySelectorAll('.pRow').forEach(tr => tr.addEventListener('click', () => {
+          const k = tr.getAttribute('data-k'); state.person = state.person === k ? null : k; renderPeople($('#pQ').value.trim().toLowerCase());
+        }));
+      }
+      renderPeople('');
+      $('#pQ').addEventListener('input', e => { renderPeople(e.target.value.trim().toLowerCase()); });
+      $('#pCsv').addEventListener('click', () => {
+        const head = ['ชื่อ', 'อีเมล', 'ตอบถูก', 'ตอบทั้งหมด', 'ข้อที่ผิด'];
+        const lines = [head.join(',')].concat(people.map(p => [`"${(p.name || '').replace(/"/g, '""')}"`, p.email || '', p.total - p.nwrong, p.total, `"${p.wrong.map(w => w.qno).join(' ')}"`].join(',')));
+        dl(lines.join('\n'), `รายคน_${combo.quiz}.csv`);
+      });
+    }
+  }
+  function dl(text, name) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + text], { type: 'text/csv;charset=utf-8' }));
+    a.download = name; a.click();
+  }
+  draw();
+}
+
 async function renderDashboard(v) {
   if (ME.role !== 'admin') { v.innerHTML = `<div class="card">เฉพาะผู้ดูแลระบบ</div>`; return; }
   v.innerHTML = `<h1>แดชบอร์ดผลสอบ</h1><div class="muted">กำลังโหลด...</div>`;
@@ -526,10 +678,7 @@ function certSvg(c) {
     <g>${corner}</g><g transform="rotate(180 1000 707)">${corner}</g>
     <path d="M 845,72 L 1928,72 L 1928,648" fill="none" stroke="${GOLD}" stroke-width="7"/>
     <path d="M 1155,1342 L 72,1342 L 72,766" fill="none" stroke="${GOLD}" stroke-width="7"/>
-    <g transform="translate(892 44) scale(0.545)">
-      <path d="M 150,20 C 210,40 268,84 304,138 C 316,157 313,170 297,186 C 238,230 180,262 132,293 C 146,200 149,110 150,20 Z" fill="#26B6BE"/>
-      <path d="M 132,293 C 96,220 82,135 108,66 C 116,44 138,36 150,52 C 150,120 149,205 132,293 Z" fill="#F2871E"/>
-      <path d="M 150,50 C 151,120 150,205 133,292 C 141,205 139,120 140,52 C 143,49 147,49 150,50 Z" fill="#FBB315"/></g>
+    <image href="${window.LOGO_MARK}" x="935" y="70" width="130" height="150" preserveAspectRatio="xMidYMid meet"/>
     <text x="1000" y="292" text-anchor="middle" font-size="46" font-weight="700" fill="${NAVY}" letter-spacing="3">DIGISERVE</text>
     <text x="1000" y="326" text-anchor="middle" font-size="20" fill="#5A6670" letter-spacing="9">CORPORATION</text>
     <text x="1000" y="442" text-anchor="middle" font-size="38" font-weight="700" fill="${GOLD2}">${esc(c.monthYear)}</text>

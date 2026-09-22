@@ -15,7 +15,7 @@
 <div id="login" class="login-wrap">
   <div class="login-card">
     <div class="logo">
-      <svg width="30" height="30" viewBox="0 0 40 40"><path d="M6 20 L20 6 L20 14 L12 20 L20 26 L20 34 Z" fill="#F68920"/><path d="M20 6 L34 20 L26 20 L20 14 Z" fill="#21BDBE"/><path d="M20 26 L28 20 L34 20 L20 34 Z" fill="#FCBC17"/></svg>
+      <img id="logoLogin" alt="Digiserve" style="height:56px;width:auto">
     </div>
     <h1>E-Learning Platform</h1>
     <p class="sub">ระบบอบรมและทดสอบออนไลน์</p>
@@ -32,7 +32,7 @@
 <div id="app" class="shell hidden">
   <aside class="sidebar">
     <div class="brand">
-      <svg width="20" height="20" viewBox="0 0 40 40"><path d="M6 20 L20 6 L20 14 L12 20 L20 26 L20 34 Z" fill="#F68920"/><path d="M20 6 L34 20 L26 20 L20 14 Z" fill="#fff"/><path d="M20 26 L28 20 L34 20 L20 34 Z" fill="#FCBC17"/></svg>
+      <img id="logoSide" alt="" style="height:22px;width:auto;vertical-align:middle">
       E-Learning
     </div>
     <nav>
@@ -43,6 +43,7 @@
       <a data-nav="assign" class="adminNav" style="display:none">มอบหมายงาน</a>
       <a data-nav="progress" class="adminNav" style="display:none">ความคืบหน้า</a>
       <a data-nav="dashboard" class="adminNav" style="display:none">แดชบอร์ดผลสอบ</a>
+      <a data-nav="questions" class="adminNav" style="display:none">วิเคราะห์รายข้อ</a>
       <a data-nav="cert" class="adminNav" style="display:none">ใบประกาศ</a>
       <a data-nav="managelessons" class="adminNav" style="display:none">จัดการบทเรียน</a>
       <a data-nav="admin" class="adminNav" style="display:none">จัดการผู้ใช้</a>
@@ -51,8 +52,8 @@
   <div class="main">
     <div class="topbar">
       <div class="logo">
-        <svg width="24" height="24" viewBox="0 0 40 40"><path d="M6 20 L20 6 L20 14 L12 20 L20 26 L20 34 Z" fill="#F68920"/><path d="M20 6 L34 20 L26 20 L20 14 Z" fill="#21BDBE"/><path d="M20 26 L28 20 L34 20 L20 34 Z" fill="#FCBC17"/></svg>
-        <b style="margin-left:6px">E-Learning Platform</b>
+        <img id="logoTop" alt="Digiserve" style="height:28px;width:auto">
+        <b style="margin-left:8px">E-Learning Platform</b>
       </div>
       <div class="who" style="position:relative">
         <span id="userMenuBtn" style="cursor:pointer;user-select:none">สวัสดี <b id="whoName">-</b> <span style="color:var(--muted)">▾</span></span>
@@ -68,6 +69,12 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
+<script src="logo.js"></script>
+<script>
+  document.getElementById('logoLogin').src = window.LOGO_FULL;
+  document.getElementById('logoTop').src   = window.LOGO_MARK;
+  document.getElementById('logoSide').src  = window.LOGO_MARK;
+</script>
 <script src="app.js"></script>
 </body>
 </html>
