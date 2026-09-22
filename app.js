@@ -63,6 +63,7 @@ async function enterApp() {
   $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
   $('#whoName').textContent = ME.name || ME.email;
   $('#navAdmin').style.display = (ME.role === 'admin') ? 'block' : 'none';
+  $('#navDash').style.display = (ME.role === 'admin') ? 'block' : 'none';
   CATALOG = await rpc('app_catalog');
   go('home');
 }
@@ -75,13 +76,14 @@ function setActiveNav(name) {
 // ---------- เราเตอร์ ----------
 async function go(name, arg) {
   const v = $('#view');
-  if (['home', 'lessons', 'quizzes', 'account', 'admin'].includes(name)) setActiveNav(name);
+  if (['home', 'lessons', 'quizzes', 'account', 'dashboard', 'admin'].includes(name)) setActiveNav(name);
   if (name === 'home') return renderHome(v);
   if (name === 'lessons') return renderList(v, 'lesson');
   if (name === 'quizzes') return renderList(v, 'quiz');
   if (name === 'lesson') return renderLesson(v, arg);
   if (name === 'quiz') return renderQuiz(v, arg);
   if (name === 'account') return renderAccount(v);
+  if (name === 'dashboard') return renderDashboard(v);
   if (name === 'admin') return renderAdmin(v);
 }
 
@@ -259,6 +261,70 @@ function renderAccount(v) {
       err.textContent = String(e.message || '').includes('wrong_old') ? 'รหัสผ่านปัจจุบันไม่ถูกต้อง' : 'เปลี่ยนไม่สำเร็จ ลองใหม่';
     } finally { btn.disabled = false; }
   });
+}
+
+// ---------- แดชบอร์ดผลสอบ (แอดมิน) ----------
+async function renderDashboard(v) {
+  if (ME.role !== 'admin') { v.innerHTML = `<div class="card">เฉพาะผู้ดูแลระบบ</div>`; return; }
+  v.innerHTML = `<h1>แดชบอร์ดผลสอบ</h1><div class="muted">กำลังโหลด...</div>`;
+  let rows;
+  try { rows = await rpc('app_admin_results'); } catch (e) { v.innerHTML = `<div class="card">โหลดข้อมูลไม่สำเร็จ</div>`; return; }
+  const sel = { team: '', quiz: '', res: '' };
+  const fmtd = (s) => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('th-TH') + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }); };
+  const teams = [...new Set(rows.map(r => r.team).filter(Boolean))];
+  const quizzes = [...new Set(rows.map(r => r.quiz).filter(Boolean))];
+
+  function draw() {
+    const f = rows.filter(r => (!sel.team || r.team === sel.team) && (!sel.quiz || r.quiz === sel.quiz)
+      && (!sel.res || (sel.res === 'pass' ? r.pass : !r.pass)));
+    const trainees = new Set(f.map(r => r.email)).size;
+    const passed = f.filter(r => r.pass).length;
+    const rate = f.length ? Math.round(passed / f.length * 100) : 0;
+    const opt = (arr, cur) => arr.map(x => `<option value="${esc(x)}" ${cur === x ? 'selected' : ''}>${esc(x)}</option>`).join('');
+    const ss = 'padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px';
+    v.innerHTML = `<h1>แดชบอร์ดผลสอบ</h1>
+      <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px">
+        <div class="tile"><div class="k">จำนวนครั้งที่สอบ</div><div class="t" style="font-size:26px">${f.length}</div></div>
+        <div class="tile"><div class="k">ผู้เข้าสอบ (คน)</div><div class="t" style="font-size:26px">${trainees}</div></div>
+        <div class="tile"><div class="k">อัตราสอบผ่าน</div><div class="t" style="font-size:26px;color:${rate>=80?'var(--success)':'var(--orange)'}">${rate}%</div></div>
+      </div>
+      <div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <select id="fTeam" style="${ss}"><option value="">ทุกทีม</option>${opt(teams, sel.team)}</select>
+        <select id="fQuiz" style="${ss}"><option value="">ทุกชุดข้อสอบ</option>${opt(quizzes, sel.quiz)}</select>
+        <select id="fRes" style="${ss}"><option value="">ทุกผล</option><option value="pass" ${sel.res==='pass'?'selected':''}>ผ่าน</option><option value="fail" ${sel.res==='fail'?'selected':''}>ไม่ผ่าน</option></select>
+        <button class="btn btn-ghost" id="fReset">ล้างตัวกรอง</button>
+        <button class="btn btn-teal" id="dCsv" style="margin-left:auto">⬇ ดาวน์โหลด CSV</button>
+      </div>
+      <div class="card" style="padding:0;overflow:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="background:#f0faf9;color:var(--teal-700)">
+            <th style="text-align:left;padding:10px 12px">วันที่</th><th style="text-align:left;padding:10px 12px">ชื่อ</th>
+            <th style="text-align:left;padding:10px 12px">ทีม</th><th style="text-align:left;padding:10px 12px">ชุดข้อสอบ</th>
+            <th style="padding:10px 12px">คะแนน</th><th style="padding:10px 12px">%</th><th style="padding:10px 12px">ผล</th></tr></thead>
+          <tbody>${f.length ? f.map(r => `<tr style="border-top:1px solid var(--line)">
+            <td style="padding:8px 12px;white-space:nowrap">${fmtd(r.created)}</td>
+            <td style="padding:8px 12px">${esc(r.name || '')}</td>
+            <td style="padding:8px 12px">${esc(r.team || '')}</td>
+            <td style="padding:8px 12px">${esc(r.quiz || '')}</td>
+            <td style="padding:8px 12px;text-align:center">${r.score}/${r.total}</td>
+            <td style="padding:8px 12px;text-align:center">${r.pct}</td>
+            <td style="padding:8px 12px;text-align:center"><span class="st ${r.pass ? 'ok' : ''}" style="${r.pass ? '' : 'background:#FBEAEA;color:var(--danger)'}">${r.pass ? 'ผ่าน' : 'ไม่ผ่าน'}</span></td>
+          </tr>`).join('') : `<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">ไม่มีข้อมูล</td></tr>`}</tbody>
+        </table>
+      </div>`;
+    $('#fTeam').addEventListener('change', e => { sel.team = e.target.value; draw(); });
+    $('#fQuiz').addEventListener('change', e => { sel.quiz = e.target.value; draw(); });
+    $('#fRes').addEventListener('change', e => { sel.res = e.target.value; draw(); });
+    $('#fReset').addEventListener('click', () => { sel.team = sel.quiz = sel.res = ''; draw(); });
+    $('#dCsv').addEventListener('click', () => {
+      const head = ['วันที่', 'ชื่อ', 'อีเมล', 'ทีม', 'ชุดข้อสอบ', 'คะแนน', 'เต็ม', '%', 'ผล'];
+      const lines = [head.join(',')].concat(f.map(r => [fmtd(r.created), r.name, r.email, r.team, r.quiz, r.score, r.total, r.pct, r.pass ? 'ผ่าน' : 'ไม่ผ่าน']
+        .map(x => `"${String(x == null ? '' : x).replace(/"/g, '""')}"`).join(',')));
+      const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'results.csv'; a.click();
+    });
+  }
+  draw();
 }
 
 // ---------- แอดมิน: สร้างผู้ใช้ ----------
