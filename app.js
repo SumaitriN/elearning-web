@@ -289,60 +289,82 @@ async function renderDashboard(v) {
   v.innerHTML = `<h1>แดชบอร์ดผลสอบ</h1><div class="muted">กำลังโหลด...</div>`;
   let rows;
   try { rows = await rpc('app_admin_results'); } catch (e) { v.innerHTML = `<div class="card">โหลดข้อมูลไม่สำเร็จ</div>`; return; }
-  const sel = { team: '', quiz: '', res: '' };
+  const sel = { team: '', quiz: '', res: '', q: '' };
   const fmtd = (s) => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('th-TH') + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }); };
   const teams = [...new Set(rows.map(r => r.team).filter(Boolean))];
   const quizzes = [...new Set(rows.map(r => r.quiz).filter(Boolean))];
+  const PAL = ['#198E8F', '#21BDBE', '#F68920', '#FCBC17', '#8b5cf6', '#0ea5e9', '#16a34a', '#e05252'];
+  const ss = 'padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px';
+  const opt = (arr, cur) => arr.map(x => `<option value="${esc(x)}" ${cur === x ? 'selected' : ''}>${esc(x)}</option>`).join('');
+  let charts = {};
 
   function draw() {
+    Object.values(charts).forEach(c => { try { c.destroy(); } catch (_) {} }); charts = {};
     const f = rows.filter(r => (!sel.team || r.team === sel.team) && (!sel.quiz || r.quiz === sel.quiz)
-      && (!sel.res || (sel.res === 'pass' ? r.pass : !r.pass)));
-    const trainees = new Set(f.map(r => r.email)).size;
-    const passed = f.filter(r => r.pass).length;
-    const rate = f.length ? Math.round(passed / f.length * 100) : 0;
-    const opt = (arr, cur) => arr.map(x => `<option value="${esc(x)}" ${cur === x ? 'selected' : ''}>${esc(x)}</option>`).join('');
-    const ss = 'padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px';
+      && (!sel.res || (sel.res === 'pass' ? r.pass : !r.pass))
+      && (!sel.q || String(r.name || '').toLowerCase().includes(sel.q)));
+    const attempts = f.length, trainees = new Set(f.map(r => r.email)).size, passed = f.filter(r => r.pass).length;
+    const rate = attempts ? Math.round(passed / attempts * 1000) / 10 : 0;
+    const avg = attempts ? Math.round(f.reduce((a, b) => a + (+b.pct || 0), 0) / attempts * 10) / 10 : 0;
+    const kpi = (k, val, d, c) => `<div class="tile" style="border-left:5px solid ${c}"><div class="k">${k}</div><div class="t" style="font-size:28px">${val}</div><div class="m">${d}</div></div>`;
     v.innerHTML = `<h1>แดชบอร์ดผลสอบ</h1>
-      <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px">
-        <div class="tile"><div class="k">จำนวนครั้งที่สอบ</div><div class="t" style="font-size:26px">${f.length}</div></div>
-        <div class="tile"><div class="k">ผู้เข้าสอบ (คน)</div><div class="t" style="font-size:26px">${trainees}</div></div>
-        <div class="tile"><div class="k">อัตราสอบผ่าน</div><div class="t" style="font-size:26px;color:${rate>=80?'var(--success)':'var(--orange)'}">${rate}%</div></div>
+      <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:6px">
+        ${kpi('จำนวนครั้งสอบ', attempts, 'ในช่วงที่เลือก', '#198E8F')}
+        ${kpi('ผู้เข้าสอบ', trainees, 'จำนวนคน', '#21BDBE')}
+        ${kpi('อัตราสอบผ่าน', rate + '%', passed + ' / ' + attempts + ' ผ่าน', rate >= 80 ? '#16a34a' : rate >= 60 ? '#F68920' : '#e05252')}
+        ${kpi('คะแนนเฉลี่ย', avg + '%', 'เฉลี่ยทุกครั้ง', '#8b5cf6')}
       </div>
       <div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <select id="fTeam" style="${ss}"><option value="">ทุกทีม</option>${opt(teams, sel.team)}</select>
         <select id="fQuiz" style="${ss}"><option value="">ทุกชุดข้อสอบ</option>${opt(quizzes, sel.quiz)}</select>
         <select id="fRes" style="${ss}"><option value="">ทุกผล</option><option value="pass" ${sel.res==='pass'?'selected':''}>ผ่าน</option><option value="fail" ${sel.res==='fail'?'selected':''}>ไม่ผ่าน</option></select>
+        <input id="fQ" placeholder="ค้นหาชื่อ..." style="${ss};flex:1;min-width:140px" value="${esc(sel.q)}">
         <button class="btn btn-ghost" id="fReset">ล้างตัวกรอง</button>
-        <button class="btn btn-teal" id="dCsv" style="margin-left:auto">⬇ ดาวน์โหลด CSV</button>
+        <button class="btn btn-teal" id="dCsv">⬇ CSV</button>
       </div>
+      <div class="grid" style="grid-template-columns:1.3fr 1fr;margin-bottom:16px">
+        <div class="card"><h2 style="font-size:15px">อัตราสอบผ่านแต่ละชุด</h2><div style="position:relative;height:300px"><canvas id="cTest"></canvas></div></div>
+        <div class="card"><h2 style="font-size:15px">ผลรวม ผ่าน/ไม่ผ่าน</h2><div style="position:relative;height:300px"><canvas id="cPie"></canvas></div></div>
+      </div>
+      <div class="card"><h2 style="font-size:15px">จำนวนครั้งสอบตามเดือน</h2><div style="position:relative;height:260px"><canvas id="cTime"></canvas></div></div>
       <div class="card" style="padding:0;overflow:auto">
         <table style="width:100%;border-collapse:collapse;font-size:13px">
           <thead><tr style="background:#f0faf9;color:var(--teal-700)">
             <th style="text-align:left;padding:10px 12px">วันที่</th><th style="text-align:left;padding:10px 12px">ชื่อ</th>
             <th style="text-align:left;padding:10px 12px">ทีม</th><th style="text-align:left;padding:10px 12px">ชุดข้อสอบ</th>
             <th style="padding:10px 12px">คะแนน</th><th style="padding:10px 12px">%</th><th style="padding:10px 12px">ผล</th></tr></thead>
-          <tbody>${f.length ? f.map(r => `<tr style="border-top:1px solid var(--line)">
+          <tbody>${f.length ? f.slice(0, 300).map(r => `<tr style="border-top:1px solid var(--line)">
             <td style="padding:8px 12px;white-space:nowrap">${fmtd(r.created)}</td>
-            <td style="padding:8px 12px">${esc(r.name || '')}</td>
-            <td style="padding:8px 12px">${esc(r.team || '')}</td>
+            <td style="padding:8px 12px">${esc(r.name || '')}</td><td style="padding:8px 12px">${esc(r.team || '')}</td>
             <td style="padding:8px 12px">${esc(r.quiz || '')}</td>
             <td style="padding:8px 12px;text-align:center">${r.score}/${r.total}</td>
             <td style="padding:8px 12px;text-align:center">${r.pct}</td>
             <td style="padding:8px 12px;text-align:center"><span class="st ${r.pass ? 'ok' : ''}" style="${r.pass ? '' : 'background:#FBEAEA;color:var(--danger)'}">${r.pass ? 'ผ่าน' : 'ไม่ผ่าน'}</span></td>
           </tr>`).join('') : `<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">ไม่มีข้อมูล</td></tr>`}</tbody>
         </table>
+        ${f.length > 300 ? `<div class="muted" style="padding:10px;text-align:center">แสดง 300 แถวแรก · ดาวน์โหลด CSV เพื่อดูทั้งหมด</div>` : ''}
       </div>`;
+    const qs = quizzes.filter(q => f.some(r => r.quiz === q));
+    const byQ = qs.map(q => { const rr = f.filter(r => r.quiz === q); const p = rr.filter(r => r.pass).length; return rr.length ? Math.round(p / rr.length * 1000) / 10 : 0; });
+    if (window.Chart) {
+      charts.cTest = new Chart($('#cTest'), { type: 'bar', data: { labels: qs, datasets: [{ data: byQ, backgroundColor: qs.map((_, i) => PAL[i % PAL.length]), borderRadius: 6, maxBarThickness: 46 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + c.raw + '% ผ่าน' } } }, scales: { y: { beginAtZero: true, max: 100, ticks: { callback: x => x + '%' } }, x: { grid: { display: false } } } } });
+      charts.cPie = new Chart($('#cPie'), { type: 'doughnut', data: { labels: ['ผ่าน', 'ไม่ผ่าน'], datasets: [{ data: [passed, attempts - passed], backgroundColor: ['#16a34a', '#e05252'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { position: 'bottom' } } } });
+      const bk = {}; f.forEach(r => { const d = new Date(r.created); if (isNaN(d)) return; const k = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); bk[k] = bk[k] || { n: 0, p: 0 }; bk[k].n++; if (r.pass) bk[k].p++; });
+      const keys = Object.keys(bk).sort();
+      charts.cTime = new Chart($('#cTime'), { type: 'line', data: { labels: keys, datasets: [{ label: 'สอบ', data: keys.map(k => bk[k].n), borderColor: '#198E8F', backgroundColor: 'rgba(25,142,143,.1)', fill: true, tension: .3 }, { label: 'ผ่าน', data: keys.map(k => bk[k].p), borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,.08)', fill: true, tension: .3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } } } });
+    }
     $('#fTeam').addEventListener('change', e => { sel.team = e.target.value; draw(); });
     $('#fQuiz').addEventListener('change', e => { sel.quiz = e.target.value; draw(); });
     $('#fRes').addEventListener('change', e => { sel.res = e.target.value; draw(); });
-    $('#fReset').addEventListener('click', () => { sel.team = sel.quiz = sel.res = ''; draw(); });
+    $('#fQ').addEventListener('input', e => { sel.q = e.target.value.toLowerCase(); clearTimeout(window.__dq); window.__dq = setTimeout(draw, 350); });
+    $('#fReset').addEventListener('click', () => { sel.team = sel.quiz = sel.res = sel.q = ''; draw(); });
     $('#dCsv').addEventListener('click', () => {
       const head = ['วันที่', 'ชื่อ', 'อีเมล', 'ทีม', 'ชุดข้อสอบ', 'คะแนน', 'เต็ม', '%', 'ผล'];
-      const lines = [head.join(',')].concat(f.map(r => [fmtd(r.created), r.name, r.email, r.team, r.quiz, r.score, r.total, r.pct, r.pass ? 'ผ่าน' : 'ไม่ผ่าน']
-        .map(x => `"${String(x == null ? '' : x).replace(/"/g, '""')}"`).join(',')));
+      const lines = [head.join(',')].concat(f.map(r => [fmtd(r.created), r.name, r.email, r.team, r.quiz, r.score, r.total, r.pct, r.pass ? 'ผ่าน' : 'ไม่ผ่าน'].map(x => `"${String(x == null ? '' : x).replace(/"/g, '""')}"`).join(',')));
       const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'results.csv'; a.click();
     });
+    const qi = $('#fQ'); if (sel.q && qi) { qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); }
   }
   draw();
 }
@@ -579,7 +601,8 @@ async function renderManageLessons(v) {
     team = cat.active_team;
     v.innerHTML = `<h1>จัดการบทเรียน</h1>
       <div class="card" style="display:flex;gap:10px;align-items:center"><span class="muted">ทีม:</span>
-        <select id="mTeam" style="${SS}">${teamOpts(team)}</select></div>
+        <select id="mTeam" style="${SS}">${teamOpts(team)}</select>
+        <button class="btn btn-primary" id="mAdd" style="margin-left:auto">+ เพิ่มบทเรียนใหม่</button></div>
       <div class="card" style="padding:0;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead><tr style="background:#f0faf9;color:var(--teal-700)"><th style="text-align:left;padding:10px 12px">หมวด</th><th style="text-align:left;padding:10px 12px">ชื่อบทเรียน</th><th style="padding:10px 12px">จัดการ</th></tr></thead>
         <tbody>${cat.lessons.length ? cat.lessons.map(l => `<tr style="border-top:1px solid var(--line)">
@@ -589,6 +612,14 @@ async function renderManageLessons(v) {
             <button class="btn btn-ghost mEdit" data-id="${l.id}" data-title="${esc(l.title)}" data-section="${esc(l.section || '')}" style="padding:6px 12px">แก้ชื่อ</button>
             <button class="btn mDel" data-id="${l.id}" data-title="${esc(l.title)}" style="padding:6px 12px;background:#FBEAEA;color:var(--danger)">ลบ</button></td></tr>`).join('') : `<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--muted)">ไม่มีบทเรียน</td></tr>`}</tbody></table></div>`;
     $('#mTeam').addEventListener('change', e => { team = e.target.value; draw(); });
+    $('#mAdd').addEventListener('click', async () => {
+      const title = prompt('ชื่อบทเรียนใหม่:'); if (!title || !title.trim()) return;
+      const section = prompt('หมวด/Section (เช่น Orientation, DAY 1):') || '';
+      try {
+        const r = await rpc('app_admin_create_lesson', { p_team: teamKeyOf(team), p_title: title.trim(), p_section: section.trim() });
+        renderBlockEditor(v, r.id, title.trim(), section.trim(), teamKeyOf(team), () => draw());
+      } catch (e) { alert('สร้างบทเรียนไม่สำเร็จ'); }
+    });
     v.querySelectorAll('.mBlocks').forEach(b => b.addEventListener('click', () =>
       renderBlockEditor(v, b.getAttribute('data-id'), b.getAttribute('data-title'), b.getAttribute('data-section'), teamKeyOf(team), () => draw())));
     v.querySelectorAll('.mEdit').forEach(b => b.addEventListener('click', async () => {
