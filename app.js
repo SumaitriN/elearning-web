@@ -998,41 +998,152 @@ async function renderCerts(v) {
 async function renderManageLessons(v) {
   if (ME.role !== 'admin') { v.innerHTML = `<div class="card">เฉพาะผู้ดูแลระบบ</div>`; return; }
   let team = CATALOG.active_team;
+  const st = { tab: 'lesson', form: null }; // form: null | {mode:'add'} | {mode:'edit', id, title, section}
+  const ip = 'width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px;box-sizing:border-box';
   async function draw() {
     const cat = await rpc('app_catalog', { p_team: team });
     team = cat.active_team;
-    v.innerHTML = `<h1>จัดการบทเรียน</h1>
-      <div class="card" style="display:flex;gap:10px;align-items:center"><span class="muted">ทีม:</span>
-        <select id="mTeam" style="${SS}">${teamOpts(team)}</select>
-        <button class="btn btn-primary" id="mAdd" style="margin-left:auto">+ เพิ่มบทเรียนใหม่</button></div>
-      <div class="card" style="padding:0;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr style="background:#f0faf9;color:var(--teal-700)"><th style="text-align:left;padding:10px 12px">หมวด</th><th style="text-align:left;padding:10px 12px">ชื่อบทเรียน</th><th style="padding:10px 12px">จัดการ</th></tr></thead>
+    const tk = teamKeyOf(team);
+    const tabBtn = (id, label) => `<button class="btn ${st.tab === id ? 'btn-teal' : 'btn-ghost'} mtab" data-t="${id}">${label}</button>`;
+    const formCard = st.form ? `<div class="card" style="background:#f0faf9">
+        <h2 style="font-size:15px;margin-top:0">${st.form.mode === 'add' ? '➕ เพิ่มบทเรียนใหม่' : '✏️ แก้ชื่อบทเรียน'}</h2>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <div style="flex:2;min-width:220px"><label class="muted" style="font-weight:600">ชื่อบทเรียน</label><input id="fTitle" style="${ip};margin-top:4px" value="${esc(st.form.title || '')}" placeholder="เช่น 01 การบริการลูกค้าที่ดี"></div>
+          <div style="flex:1;min-width:160px"><label class="muted" style="font-weight:600">หมวด / Section</label><input id="fSec" style="${ip};margin-top:4px" value="${esc(st.form.section || '')}" placeholder="เช่น Customer Service, DAY 1"></div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:10px">
+          <button class="btn btn-primary" id="fSave" style="width:auto;padding:10px 22px">${st.form.mode === 'add' ? 'สร้างแล้วแก้เนื้อหา' : 'บันทึกชื่อ'}</button>
+          <button class="btn btn-ghost" id="fCancel">ยกเลิก</button>
+        </div></div>` : '';
+    let listCard;
+    if (st.tab === 'lesson') {
+      listCard = `<div class="card" style="padding:0;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:var(--teal-700,#198E8F);color:#fff"><th style="text-align:left;padding:10px 12px">หมวด</th><th style="text-align:left;padding:10px 12px">ชื่อบทเรียน</th><th style="padding:10px 12px">จัดการ</th></tr></thead>
         <tbody>${cat.lessons.length ? cat.lessons.map(l => `<tr style="border-top:1px solid var(--line)">
           <td style="padding:8px 12px">${esc(l.section || '')}</td><td style="padding:8px 12px">${esc(l.title)}</td>
           <td style="padding:8px 12px;text-align:center;white-space:nowrap">
             <button class="btn btn-teal mBlocks" data-id="${l.id}" data-title="${esc(l.title)}" data-section="${esc(l.section || '')}" style="padding:6px 12px">แก้เนื้อหา</button>
             <button class="btn btn-ghost mEdit" data-id="${l.id}" data-title="${esc(l.title)}" data-section="${esc(l.section || '')}" style="padding:6px 12px">แก้ชื่อ</button>
             <button class="btn mDel" data-id="${l.id}" data-title="${esc(l.title)}" style="padding:6px 12px;background:#FBEAEA;color:var(--danger)">ลบ</button></td></tr>`).join('') : `<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--muted)">ไม่มีบทเรียน</td></tr>`}</tbody></table></div>`;
-    $('#mTeam').addEventListener('change', e => { team = e.target.value; draw(); });
-    $('#mAdd').addEventListener('click', async () => {
-      const title = prompt('ชื่อบทเรียนใหม่:'); if (!title || !title.trim()) return;
-      const section = prompt('หมวด/Section (เช่น Orientation, DAY 1):') || '';
-      try {
-        const r = await rpc('app_admin_create_lesson', { p_team: teamKeyOf(team), p_title: title.trim(), p_section: section.trim() });
-        renderBlockEditor(v, r.id, title.trim(), section.trim(), teamKeyOf(team), () => draw());
-      } catch (e) { alert('สร้างบทเรียนไม่สำเร็จ'); }
+    } else {
+      listCard = `<div class="card" style="padding:0;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:var(--teal-700,#198E8F);color:#fff"><th style="text-align:left;padding:10px 12px">ชื่อชุดข้อสอบ</th><th style="padding:10px 12px">จำนวนข้อ</th><th style="padding:10px 12px">เวลา</th><th style="padding:10px 12px">เกณฑ์ผ่าน</th><th style="padding:10px 12px">จัดการ</th></tr></thead>
+        <tbody>${cat.quizzes.length ? cat.quizzes.map(z => `<tr style="border-top:1px solid var(--line)">
+          <td style="padding:8px 12px">${esc(z.title)}</td>
+          <td style="padding:8px 12px;text-align:center">${z.n} ข้อ</td>
+          <td style="padding:8px 12px;text-align:center">${z.minutes} นาที</td>
+          <td style="padding:8px 12px;text-align:center">${z.pass}%</td>
+          <td style="padding:8px 12px;text-align:center;white-space:nowrap">
+            <button class="btn btn-teal qEdit" data-id="${z.id}" style="padding:6px 12px">แก้ไขข้อสอบ</button>
+            <button class="btn qDel" data-id="${z.id}" data-title="${esc(z.title)}" style="padding:6px 12px;background:#FBEAEA;color:var(--danger)">ลบ</button></td></tr>`).join('') : `<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--muted)">ไม่มีแบบทดสอบ</td></tr>`}</tbody></table></div>`;
+    }
+    v.innerHTML = `<h1>จัดการบทเรียนและข้อสอบ</h1>
+      <div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <span class="muted">ทีม:</span><select id="mTeam" style="${SS}">${teamOpts(team)}</select>
+        <span style="width:14px"></span>${tabBtn('lesson', '📘 บทเรียน')}${tabBtn('quiz', '📝 แบบทดสอบ')}
+        <button class="btn btn-primary" id="mAdd" style="margin-left:auto">${st.tab === 'lesson' ? '+ เพิ่มบทเรียนใหม่' : '+ เพิ่มแบบทดสอบใหม่'}</button>
+      </div>
+      ${formCard}${listCard}`;
+    $('#mTeam').addEventListener('change', e => { team = e.target.value; st.form = null; draw(); });
+    v.querySelectorAll('.mtab').forEach(b => b.addEventListener('click', () => { st.tab = b.getAttribute('data-t'); st.form = null; draw(); }));
+    $('#mAdd').addEventListener('click', () => {
+      if (st.tab === 'lesson') { st.form = { mode: 'add', title: '', section: '' }; draw(); }
+      else renderQuizEditor(v, null, tk, () => { st.tab = 'quiz'; draw(); });
     });
+    if (st.form) {
+      $('#fCancel').addEventListener('click', () => { st.form = null; draw(); });
+      $('#fSave').addEventListener('click', async () => {
+        const t = $('#fTitle').value.trim(), s = $('#fSec').value.trim();
+        if (!t) { $('#fTitle').focus(); return; }
+        try {
+          if (st.form.mode === 'add') {
+            const r = await rpc('app_admin_create_lesson', { p_team: tk, p_title: t, p_section: s });
+            st.form = null; renderBlockEditor(v, r.id, t, s, tk, () => draw());
+          } else {
+            await rpc('app_admin_update_lesson', { p_lesson_id: st.form.id, p_title: t, p_section: s, p_order: 0 });
+            st.form = null; draw();
+          }
+        } catch (e) { alert('บันทึกไม่สำเร็จ'); }
+      });
+    }
     v.querySelectorAll('.mBlocks').forEach(b => b.addEventListener('click', () =>
-      renderBlockEditor(v, b.getAttribute('data-id'), b.getAttribute('data-title'), b.getAttribute('data-section'), teamKeyOf(team), () => draw())));
-    v.querySelectorAll('.mEdit').forEach(b => b.addEventListener('click', async () => {
-      const nt = prompt('ชื่อบทเรียน:', b.getAttribute('data-title')); if (nt === null) return;
-      const ns = prompt('หมวด/Section:', b.getAttribute('data-section')); if (ns === null) return;
-      await rpc('app_admin_update_lesson', { p_lesson_id: b.getAttribute('data-id'), p_title: nt.trim(), p_section: ns.trim(), p_order: 0 }); draw();
+      renderBlockEditor(v, b.getAttribute('data-id'), b.getAttribute('data-title'), b.getAttribute('data-section'), tk, () => draw())));
+    v.querySelectorAll('.mEdit').forEach(b => b.addEventListener('click', () => {
+      st.form = { mode: 'edit', id: b.getAttribute('data-id'), title: b.getAttribute('data-title'), section: b.getAttribute('data-section') }; draw();
     }));
     v.querySelectorAll('.mDel').forEach(b => b.addEventListener('click', async () => {
       if (!confirm('ลบบทเรียน "' + b.getAttribute('data-title') + '" ?\n(ลบเนื้อหาทั้งบท)')) return;
       await rpc('app_admin_delete_lesson', { p_lesson_id: b.getAttribute('data-id') }); draw();
     }));
+    v.querySelectorAll('.qEdit').forEach(b => b.addEventListener('click', () =>
+      renderQuizEditor(v, b.getAttribute('data-id'), tk, () => { st.tab = 'quiz'; draw(); })));
+    v.querySelectorAll('.qDel').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('ลบแบบทดสอบ "' + b.getAttribute('data-title') + '" ?\n(ลบคำถามและประวัติการสอบทั้งหมดของชุดนี้)')) return;
+      await rpc('app_admin_quiz_delete', { p_quiz: b.getAttribute('data-id') }); draw();
+    }));
+  }
+  draw();
+}
+
+// ---------- ตัวแก้ไขข้อสอบ (quiz editor) ----------
+async function renderQuizEditor(v, quizId, teamKey, onBack) {
+  v.innerHTML = `<div class="muted">กำลังโหลด...</div>`;
+  let data = { title: '', minutes: 15, pass: 80, questions: [] };
+  if (quizId) { try { data = await rpc('app_admin_quiz_get', { p_quiz: quizId }); } catch (_) {} }
+  const st = { title: data.title || '', minutes: data.minutes || 15, pass: data.pass || 80,
+    qs: (data.questions || []).map(q => ({ q: q.q || '', choices: q.choices || [], correct: q.correct || 0 })) };
+  const ta = 'width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px;box-sizing:border-box';
+  function sync() {
+    st.title = $('#qzTitle').value; st.minutes = parseInt($('#qzMin').value) || 15; st.pass = parseInt($('#qzPass').value) || 80;
+    st.qs = [...v.querySelectorAll('[data-q]')].map(el => ({
+      q: el.querySelector('.qQ').value,
+      choices: el.querySelector('.qC').value.split('\n').map(s => s.trim()).filter(Boolean),
+      correct: (parseInt(el.querySelector('.qA').value) || 1) - 1
+    }));
+  }
+  function draw() {
+    v.innerHTML = `<a class="muted" style="cursor:pointer" id="qzBack">← กลับ</a>
+      <h1>${quizId ? 'แก้ไขข้อสอบ' : 'เพิ่มข้อสอบใหม่'}</h1>
+      <div class="card">
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <div style="flex:2;min-width:220px"><label class="muted" style="font-weight:600">ชื่อชุดข้อสอบ</label><input id="qzTitle" style="${ta};margin-top:4px" value="${esc(st.title)}" placeholder="เช่น แบบทดสอบ PDPA"></div>
+          <div style="flex:1;min-width:110px"><label class="muted" style="font-weight:600">เวลา (นาที)</label><input id="qzMin" type="number" min="1" style="${ta};margin-top:4px" value="${st.minutes}"></div>
+          <div style="flex:1;min-width:110px"><label class="muted" style="font-weight:600">เกณฑ์ผ่าน (%)</label><input id="qzPass" type="number" min="0" max="100" style="${ta};margin-top:4px" value="${st.pass}"></div>
+        </div>
+      </div>
+      <div id="qzList">${st.qs.map((q, i) => `
+        <div class="card" data-q data-idx="${i}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <b class="muted">คำถามที่ ${i + 1}</b>
+            <span>
+              <button class="btn btn-ghost qUp" data-i="${i}" style="padding:4px 10px" ${i === 0 ? 'disabled' : ''}>↑</button>
+              <button class="btn btn-ghost qDown" data-i="${i}" style="padding:4px 10px" ${i === st.qs.length - 1 ? 'disabled' : ''}>↓</button>
+              <button class="btn qDelQ" data-i="${i}" style="padding:4px 10px;background:#FBEAEA;color:var(--danger)">ลบ</button>
+            </span></div>
+          <input class="qQ" style="${ta};margin-bottom:6px" placeholder="คำถาม" value="${esc(q.q)}">
+          <textarea class="qC" rows="4" style="${ta};margin-bottom:6px" placeholder="ตัวเลือก (บรรทัดละ 1 ข้อ)">${esc((q.choices || []).join('\n'))}</textarea>
+          <div style="display:flex;gap:8px;align-items:center"><span class="muted">ข้อที่ถูก (ลำดับตัวเลือก 1-N):</span><input class="qA" type="number" min="1" style="${ta};width:120px" value="${(q.correct ?? 0) + 1}"></div>
+        </div>`).join('')}</div>
+      <div style="display:flex;gap:10px;margin-bottom:20px">
+        <button class="btn btn-ghost" id="qzAdd">+ เพิ่มคำถาม</button>
+        <button class="btn btn-primary" id="qzSave" style="margin-left:auto">💾 บันทึกข้อสอบ</button></div>
+      <div class="login-err" id="qzMsg"></div>`;
+    $('#qzBack').addEventListener('click', onBack);
+    $('#qzAdd').addEventListener('click', () => { sync(); st.qs.push({ q: '', choices: [], correct: 0 }); draw(); });
+    v.querySelectorAll('.qUp').forEach(b => b.addEventListener('click', () => { sync(); const i = +b.getAttribute('data-i'); [st.qs[i - 1], st.qs[i]] = [st.qs[i], st.qs[i - 1]]; draw(); }));
+    v.querySelectorAll('.qDown').forEach(b => b.addEventListener('click', () => { sync(); const i = +b.getAttribute('data-i'); [st.qs[i + 1], st.qs[i]] = [st.qs[i], st.qs[i + 1]]; draw(); }));
+    v.querySelectorAll('.qDelQ').forEach(b => b.addEventListener('click', () => { sync(); st.qs.splice(+b.getAttribute('data-i'), 1); draw(); }));
+    $('#qzSave').addEventListener('click', async () => {
+      sync(); const m = $('#qzMsg'); const btn = $('#qzSave');
+      if (!st.title.trim()) { m.style.color = 'var(--danger)'; m.textContent = 'กรุณาใส่ชื่อชุดข้อสอบ'; return; }
+      if (!st.qs.length) { m.style.color = 'var(--danger)'; m.textContent = 'ต้องมีอย่างน้อย 1 คำถาม'; return; }
+      btn.disabled = true;
+      try {
+        await rpc('app_admin_quiz_save', { p_quiz: quizId, p_team: teamKey, p_title: st.title.trim(), p_minutes: st.minutes, p_pass: st.pass, p_questions: st.qs });
+        m.style.color = 'var(--success)'; m.textContent = 'บันทึกข้อสอบเรียบร้อย ✓';
+        setTimeout(onBack, 700);
+      } catch (e) { m.style.color = 'var(--danger)'; m.textContent = 'บันทึกไม่สำเร็จ'; btn.disabled = false; }
+    });
   }
   draw();
 }
