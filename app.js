@@ -79,6 +79,7 @@ function setActiveNav(name) {
 async function go(name, arg) {
   const v = $('#view');
   if (['home', 'lessons', 'quizzes', 'typing', 'account', 'assign', 'progress', 'dashboard', 'questions', 'cert', 'managelessons', 'admin'].includes(name)) setActiveNav(name);
+  v.classList.toggle('wide', ['dashboard', 'admin', 'progress', 'assign', 'managelessons', 'questions', 'cert'].includes(name));
   if (name === 'home') return renderHome(v);
   if (name === 'lessons') return renderList(v, 'lesson');
   if (name === 'quizzes') return renderList(v, 'quiz');
@@ -505,13 +506,15 @@ async function renderDashboard(v) {
     a.download = 'results_by_trainee.csv'; a.click();
   }
 
-  // ลิงก์ชีตต้นทางของแต่ละชุดสอบ (backend result sheets)
-  const SHEET_BASE = 'https://docs.google.com/spreadsheets/d/1nCdV49G1GG8DpSb5U5fiGy-3kdPbHnHNPt7c1x8mVKU/edit?gid=';
-  const SHEET_LINKS = {
-    'Soft Skill': SHEET_BASE + '577603034',
-    'PDPA': SHEET_BASE + '1793217909',
-    'Risk Management': SHEET_BASE + '1229715473'
+  // ลิงก์ชีตต้นทางของแต่ละชุดสอบ (backend result sheets) แยกตามทีม
+  const D = 'https://docs.google.com/spreadsheets/d/', MK = D + '12mDo-_EK8xqfIp6EFk7pCVUR8c-muBuP3uDx2IB4Qqs/edit?gid=',
+        LT = D + '1tqsWOlQJDU4edgvMYzAV2shj4PuFOdJednvcIFeP2oE/edit?gid=', CT = D + '1nCdV49G1GG8DpSb5U5fiGy-3kdPbHnHNPt7c1x8mVKU/edit?gid=';
+  const SHEETS = {
+    Makro: [['QA', MK + '977570320'], ['Pro Apps', MK + '661088045'], ['Overview', MK + '1046236065'], ['Final Test', MK + '1695054400'], ['SOPs', MK + '640379399'], ['Internal Tools', MK + '20587673']],
+    Lotus: [['Company Profile & BU 01', LT + '580684386'], ['Customer Service 01', LT + '478956290'], ['QA', LT + '845707605'], ['Shop Online', LT + '1046835350'], ['FastHelp5 - 01', LT + '1426165820'], ["My Lotus's - 01", D + '1_vCNpmNnw9i9W-Eab4fw2JTvwUdlBkqLVXpctwX647A/edit'], ['Marketplace - 01', D + '1IeYWITGRKx-2St6Fcd65HekvzoGA7Vh1csl6Cqf3qfs/edit'], ['GC Office - 01', D + '1Qh7o2VXY7Xo6znTBJCRO0yFzZue3ERl9tHkVgXy5FtI/edit']],
+    Center: [['Soft Skill', CT + '577603034'], ['PDPA', CT + '1793217909'], ['Risk Management', CT + '1229715473']]
   };
+  const groupKey = n => /Makro/i.test(n) ? 'Makro' : /Lotus/i.test(n) ? 'Lotus' : 'Center';
   const AKEY = { date: 'created', trainee: 'name', test: 'quiz', score: 'score', pct: 'pct', result: 'pass' };
 
   function drawAttempts() {
@@ -567,17 +570,16 @@ async function renderDashboard(v) {
   }
   function drawLinks() {
     const wrap = $('#linksWrap'); if (!wrap) return;
-    const present = [...new Set(curF.map(r => r.quiz))].filter(q => SHEET_LINKS[q]);
-    if (!present.length) { wrap.innerHTML = ''; return; }
-    const AC = ['#F68920', '#21BDBE', '#8b5cf6', '#16a34a', '#e05252'];
-    wrap.innerHTML = `<div class="card">
-      <h2 style="font-size:16px;margin:0 0 2px">Tests &amp; links <span class="muted" style="font-weight:400;font-size:13px">— ชีตต้นทางผลสอบ</span></h2>
+    const AC = ['#F68920', '#21BDBE', '#8b5cf6', '#16a34a', '#e05252', '#0ea5e9'];
+    const groups = sel.team ? [groupKey(sel.team)] : ['Makro', 'Lotus', 'Center'];
+    wrap.innerHTML = groups.map(g => `<div class="card">
+      <h2 style="font-size:16px;margin:0 0 2px">Tests &amp; links <span class="muted" style="font-weight:400;font-size:13px">— ชีตต้นทางผลสอบ · ${esc(g)}</span></h2>
       <div style="overflow:auto;margin-top:10px"><table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr style="background:#f0faf9;color:var(--teal-700)"><th style="text-align:left;padding:10px 14px">ชุดข้อสอบ</th><th style="padding:10px 14px">ชีตต้นทาง (ผลข้อสอบ)</th></tr></thead>
-        <tbody>${present.map((q, i) => `<tr style="border-top:1px solid var(--line)">
-          <td style="padding:10px 14px;border-left:4px solid ${AC[i % AC.length]};font-weight:500">${esc(q)}</td>
-          <td style="padding:10px 14px;text-align:center"><a class="btn btn-ghost" href="${esc(SHEET_LINKS[q])}" target="_blank" rel="noopener" style="padding:6px 14px;text-decoration:none">เปิดชีต ↗</a></td>
-        </tr>`).join('')}</tbody></table></div></div>`;
+        <thead><tr style="background:var(--teal-700,#198E8F);color:#fff"><th style="text-align:left;padding:10px 14px">ชุดข้อสอบ</th><th style="padding:10px 14px">ชีตต้นทาง (ผลข้อสอบ)</th></tr></thead>
+        <tbody>${SHEETS[g].map(([name, url], i) => `<tr style="border-top:1px solid var(--line)">
+          <td style="padding:10px 14px;border-left:4px solid ${AC[i % AC.length]};font-weight:500">${esc(name)}</td>
+          <td style="padding:10px 14px;text-align:center"><a class="btn btn-ghost" href="${esc(url)}" target="_blank" rel="noopener" style="padding:6px 14px;text-decoration:none">เปิดชีต ↗</a></td>
+        </tr>`).join('')}</tbody></table></div></div>`).join('');
   }
 
   function draw() {
