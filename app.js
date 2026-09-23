@@ -246,7 +246,7 @@ async function renderQuiz(v, id) {
     if (!state.timer) state.timer = setInterval(() => {
       state.left--; const t = $('#timer');
       if (t) { t.textContent = fmt(state.left); t.classList.toggle('warn', state.left <= 60); }
-      if (state.left <= 0) { clearInterval(state.timer); submit(); }
+      if (state.left <= 0) { clearInterval(state.timer); submit(true); }
     }, 1000);
     const q = questions[state.cur], last = state.cur === questions.length - 1;
     v.innerHTML = `
@@ -259,10 +259,20 @@ async function renderQuiz(v, id) {
         <button class="btn ${last ? 'btn-primary' : 'btn-teal'}" id="nextBtn">${last ? 'ส่งคำตอบ' : 'ถัดไป →'}</button></div>`;
     v.querySelectorAll('.opt').forEach(o => o.addEventListener('click', () => { state.ans[state.cur] = +o.getAttribute('data-c'); run(); }));
     $('#prevBtn').addEventListener('click', () => { if (state.cur > 0) { state.cur--; run(); } });
-    $('#nextBtn').addEventListener('click', () => { if (last) submit(); else { state.cur++; run(); } });
+    $('#nextBtn').addEventListener('click', () => { if (last) submit(false); else { state.cur++; run(); } });
   }
 
-  async function submit() {
+  async function submit(auto) {
+    if (!auto) {
+      const missing = [];
+      questions.forEach((q, i) => { if (state.ans[i] == null) missing.push(i + 1); });
+      if (missing.length) {
+        const msg = window.LANG === 'en'
+          ? `You have ${missing.length} unanswered question(s): ${missing.join(', ')}.\nSubmit anyway?`
+          : `คุณยังไม่ได้ตอบ ${missing.length} ข้อ: ข้อ ${missing.join(', ')}\nต้องการส่งคำตอบเลยหรือไม่?`;
+        if (!confirm(msg)) { state.cur = missing[0] - 1; run(); return; }
+      }
+    }
     clearInterval(state.timer); state.timer = null;
     const payload = {}; questions.forEach((q, i) => { if (state.ans[i] != null) payload[q.id] = state.ans[i]; });
     v.innerHTML = `<div class="muted">กำลังส่งคำตอบ...</div>`;
@@ -1103,37 +1113,85 @@ async function renderAdmin(v) {
   async function load() { users = await rpc('app_admin_list_users', team ? { p_team: team } : {}); }
   await load();
   const inp = 'width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-family:inherit';
+  const cell = 'padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px';
+  const emailOk = e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
   function draw() {
+    const nAdmin = users.filter(u => u.role === 'admin').length;
     v.innerHTML = `<h1>จัดการผู้ใช้</h1>
-      <div class="card" style="max-width:500px"><h2>สร้างบัญชีใหม่</h2>
-        <div class="field"><label>ชื่อ-สกุล</label><input id="aName"></div>
-        <div class="field"><label>อีเมล</label><input id="aEmail" type="email"></div>
-        <div class="field"><label>รหัสผ่านตั้งต้น</label><input id="aPass"></div>
-        <div class="field"><label>สิทธิ์</label><select id="aRole" style="${inp}"><option value="agent">ผู้เรียน (agent)</option><option value="admin">ผู้ดูแล (admin)</option></select></div>
-        <div class="field"><label>ทีม</label><select id="aTeamSel" style="${inp}">${teamOpts()}</select></div>
-        <div class="login-err" id="aErr" style="margin:0 0 10px"></div>
-        <button class="btn btn-primary" id="aBtn">สร้างบัญชี</button></div>
+      <div class="grid" style="grid-template-columns:1fr 1fr;align-items:start">
+        <div class="card"><h2 style="font-size:16px">➕ สร้างบัญชีเดียว</h2>
+          <div class="field"><label>อีเมล</label><input id="aEmail" type="email" placeholder="name@digiserve.work"></div>
+          <div class="field"><label>ชื่อ-นามสกุล</label><input id="aName" placeholder="ชื่อที่จะแสดง"></div>
+          <div style="display:flex;gap:10px">
+            <div class="field" style="flex:1"><label>ทีม</label><select id="aTeamSel" style="${inp}">${teamOpts()}</select></div>
+            <div class="field" style="flex:1"><label>สิทธิ์</label><select id="aRole" style="${inp}"><option value="agent">ผู้เรียน (agent)</option><option value="admin">ผู้ดูแล (admin)</option></select></div>
+          </div>
+          <div class="field"><label>รหัสผ่านเริ่มต้น</label><input id="aPass" placeholder="อย่างน้อย 6 ตัว"></div>
+          <div class="login-err" id="aErr" style="margin:0 0 10px"></div>
+          <button class="btn btn-primary" id="aBtn" style="width:auto;padding:11px 24px">สร้างบัญชี</button></div>
+        <div class="card"><h2 style="font-size:16px">📋 สร้างหลายบัญชีทีเดียว (Batch)</h2>
+          <label class="muted" style="font-weight:600">อีเมล (1 บรรทัดต่อ 1 คน) — ใส่ชื่อได้โดยคั่นด้วยจุลภาค</label>
+          <textarea id="bList" rows="7" placeholder="somchai@digiserve.work, สมชาย ใจดี&#10;somsri@digiserve.work, สมศรี มีสุข&#10;user3@digiserve.work" style="${inp};margin:6px 0 10px;resize:vertical"></textarea>
+          <div style="display:flex;gap:10px">
+            <div class="field" style="flex:1"><label>ทีม</label><select id="bTeam" style="${inp}">${teamOpts()}</select></div>
+            <div class="field" style="flex:1"><label>รหัสผ่านเริ่มต้น (ใช้ร่วมกันทุกคน)</label><input id="bPass" placeholder="อย่างน้อย 6 ตัว"></div>
+          </div>
+          <div class="login-err" id="bErr" style="margin:0 0 10px"></div>
+          <button class="btn btn-primary" id="bBtn" style="width:auto;padding:11px 24px">สร้างทั้งหมด</button>
+          <div class="muted" style="margin-top:8px;font-size:12px">* ทุกบัญชีจะได้รหัสผ่านเริ่มต้นเดียวกัน — แนะนำให้แจ้งผู้ใช้เปลี่ยน/รีเซ็ตภายหลัง · ระบบข้ามอีเมลที่ซ้ำหรือไม่ถูกต้องให้อัตโนมัติ</div></div>
+      </div>
       <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-        <h2 style="margin:0">รายชื่อผู้ใช้ (${users.length})</h2>
+        <h2 style="margin:0;font-size:16px">รายชื่อผู้ใช้ (${users.length}) <span class="muted" style="font-weight:400;font-size:13px">· ผู้ดูแล ${nAdmin} คน</span></h2>
         <select id="uTeam" style="${SS}"><option value="">ทุกทีม</option>${teamOpts(team)}</select></div>
         <div style="overflow:auto;margin-top:10px"><table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead><tr style="background:#f0faf9;color:var(--teal-700)"><th style="text-align:left;padding:8px 10px">ชื่อ</th><th style="text-align:left;padding:8px 10px">อีเมล</th><th style="padding:8px 10px">ทีม</th><th style="padding:8px 10px">สิทธิ์</th><th style="padding:8px 10px">จัดการ</th></tr></thead>
-          <tbody>${users.map(u => `<tr style="border-top:1px solid var(--line)"><td style="padding:7px 10px">${esc(u.name || '')}</td><td style="padding:7px 10px">${esc(u.email)}</td><td style="padding:7px 10px;text-align:center">${esc(u.team || '')}</td><td style="padding:7px 10px;text-align:center">${u.role === 'admin' ? '👑 admin' : 'agent'}</td>
-            <td style="padding:7px 10px;text-align:center;white-space:nowrap">
-              <button class="btn btn-ghost uReset" data-id="${u.id}" style="padding:5px 10px">รีเซ็ตรหัส</button>
-              <button class="btn uDel" data-id="${u.id}" data-name="${esc(u.name || u.email)}" style="padding:5px 10px;background:#FBEAEA;color:var(--danger)">ลบ</button></td></tr>`).join('')}</tbody></table></div></div>`;
+          <thead><tr style="background:var(--teal-700,#198E8F);color:#fff"><th style="text-align:left;padding:9px 10px">อีเมล</th><th style="text-align:left;padding:9px 10px">ชื่อ</th><th style="padding:9px 10px">ทีม</th><th style="padding:9px 10px">สิทธิ์</th><th style="padding:9px 10px">รีเซ็ตรหัสผ่าน</th><th style="padding:9px 10px">ลบ</th></tr></thead>
+          <tbody>${users.map(u => `<tr style="border-top:1px solid var(--line)">
+            <td style="padding:7px 10px">${esc(u.email)}</td>
+            <td style="padding:7px 10px;white-space:nowrap"><input class="nEdit" data-id="${u.id}" value="${esc(u.name || '')}" style="${cell};width:150px"> <button class="btn btn-ghost nSave" data-id="${u.id}" style="padding:5px 9px" title="บันทึกชื่อ">💾</button></td>
+            <td style="padding:7px 10px;text-align:center">${esc(u.team || '—')}</td>
+            <td style="padding:7px 10px;text-align:center"><select class="rEdit" data-id="${u.id}" data-name="${esc(u.name || '')}" data-team="${u.team_id || ''}" style="${cell}"><option value="agent" ${u.role !== 'admin' ? 'selected' : ''}>Agent</option><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option></select></td>
+            <td style="padding:7px 10px;text-align:center;white-space:nowrap"><input class="pNew" data-id="${u.id}" placeholder="รหัสใหม่" style="${cell};width:110px"> <button class="btn btn-ghost pDo" data-id="${u.id}" style="padding:5px 10px">รีเซ็ต</button></td>
+            <td style="padding:7px 10px;text-align:center"><button class="btn uDel" data-id="${u.id}" data-name="${esc(u.name || u.email)}" style="padding:5px 10px;background:#FBEAEA;color:var(--danger)">ลบ</button></td></tr>`).join('')}</tbody></table></div></div>`;
+
     $('#aBtn').addEventListener('click', async () => {
       const btn = $('#aBtn'); btn.disabled = true; $('#aErr').style.color = 'var(--danger)'; $('#aErr').textContent = '';
+      const em = $('#aEmail').value.trim(), pw = $('#aPass').value;
+      if (!emailOk(em)) { $('#aErr').textContent = 'อีเมลไม่ถูกต้อง'; btn.disabled = false; return; }
+      if (pw.length < 6) { $('#aErr').textContent = 'รหัสผ่านอย่างน้อย 6 ตัว'; btn.disabled = false; return; }
       try {
-        await rpc('app_admin_create_user', { p_email: $('#aEmail').value.trim(), p_password: $('#aPass').value, p_name: $('#aName').value.trim(), p_role: $('#aRole').value, p_team: $('#aTeamSel').value });
+        await rpc('app_admin_create_user', { p_email: em, p_password: pw, p_name: $('#aName').value.trim(), p_role: $('#aRole').value, p_team: $('#aTeamSel').value });
         $('#aName').value = $('#aEmail').value = $('#aPass').value = ''; await load(); draw();
       } catch (e) { $('#aErr').textContent = String(e.message || '').includes('duplicate') ? 'อีเมลนี้มีอยู่แล้ว' : 'สร้างไม่สำเร็จ'; } finally { btn.disabled = false; }
     });
+    $('#bBtn').addEventListener('click', async () => {
+      const btn = $('#bBtn'), err = $('#bErr'); err.style.color = 'var(--danger)';
+      const pw = $('#bPass').value; if (pw.length < 6) { err.textContent = 'รหัสผ่านอย่างน้อย 6 ตัว'; return; }
+      const seen = new Set(users.map(u => (u.email || '').toLowerCase()));
+      const rows = $('#bList').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+        const i = l.indexOf(','); return i < 0 ? { e: l.trim(), n: '' } : { e: l.slice(0, i).trim(), n: l.slice(i + 1).trim() };
+      });
+      const valid = rows.filter(r => emailOk(r.e) && !seen.has(r.e.toLowerCase()));
+      if (!valid.length) { err.textContent = 'ไม่มีอีเมลที่ถูกต้อง/ยังไม่ซ้ำ'; return; }
+      btn.disabled = true; err.textContent = ''; let ok = 0;
+      for (const r of valid) { try { await rpc('app_admin_create_user', { p_email: r.e, p_password: pw, p_name: r.n, p_role: 'agent', p_team: $('#bTeam').value }); ok++; } catch (_) {} }
+      err.style.color = 'var(--success)'; err.textContent = `สร้างสำเร็จ ${ok} บัญชี (ข้าม ${rows.length - ok})`;
+      $('#bList').value = ''; await load(); draw();
+    });
     $('#uTeam').addEventListener('change', async e => { team = e.target.value; await load(); draw(); });
-    v.querySelectorAll('.uReset').forEach(b => b.addEventListener('click', async () => {
-      const np = prompt('ตั้งรหัสผ่านใหม่ (อย่างน้อย 6 ตัว):'); if (!np) return;
-      if (np.length < 6) { alert('รหัสผ่านสั้นเกินไป'); return; }
-      try { await rpc('app_admin_reset_password', { p_user_id: b.getAttribute('data-id'), p_new: np }); alert('รีเซ็ตรหัสผ่านเรียบร้อย'); } catch (e) { alert('ไม่สำเร็จ'); }
+    v.querySelectorAll('.nSave').forEach(b => b.addEventListener('click', async () => {
+      const id = b.getAttribute('data-id'), u = users.find(x => x.id === id);
+      const nm = v.querySelector(`.nEdit[data-id="${id}"]`).value.trim();
+      b.disabled = true; try { await rpc('app_admin_set_user', { p_user_id: id, p_name: nm, p_role: u.role, p_team: u.team_id }); b.textContent = '✓'; setTimeout(() => { b.textContent = '💾'; b.disabled = false; }, 1200); u.name = nm; } catch (e) { alert('บันทึกไม่สำเร็จ'); b.disabled = false; }
+    }));
+    v.querySelectorAll('.rEdit').forEach(s => s.addEventListener('change', async () => {
+      const id = s.getAttribute('data-id'), newRole = s.value;
+      if (!confirm(newRole === 'admin' ? 'ตั้งให้เป็นผู้ดูแล (Admin)?' : 'เปลี่ยนเป็นผู้เรียน (Agent)?')) { draw(); return; }
+      try { await rpc('app_admin_set_user', { p_user_id: id, p_name: s.getAttribute('data-name'), p_role: newRole, p_team: s.getAttribute('data-team') || null }); await load(); draw(); } catch (e) { alert('เปลี่ยนสิทธิ์ไม่สำเร็จ'); }
+    }));
+    v.querySelectorAll('.pDo').forEach(b => b.addEventListener('click', async () => {
+      const id = b.getAttribute('data-id'), np = v.querySelector(`.pNew[data-id="${id}"]`).value;
+      if (np.length < 6) { alert('รหัสผ่านอย่างน้อย 6 ตัว'); return; }
+      b.disabled = true; try { await rpc('app_admin_reset_password', { p_user_id: id, p_new: np }); alert('รีเซ็ตรหัสผ่านเรียบร้อย'); v.querySelector(`.pNew[data-id="${id}"]`).value = ''; } catch (e) { alert('ไม่สำเร็จ'); } finally { b.disabled = false; }
     }));
     v.querySelectorAll('.uDel').forEach(b => b.addEventListener('click', async () => {
       if (!confirm('ลบผู้ใช้ "' + b.getAttribute('data-name') + '" ?')) return;

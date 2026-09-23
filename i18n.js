@@ -116,6 +116,13 @@
     'สร้างบัญชีใหม่': 'Create new account', 'ชื่อ-สกุล': 'Full name', 'รหัสผ่านตั้งต้น': 'Initial password',
     'สิทธิ์': 'Role', 'ผู้เรียน (agent)': 'Learner (agent)', 'ผู้ดูแล (admin)': 'Admin',
     'สร้างบัญชี': 'Create account', 'รีเซ็ตรหัส': 'Reset password',
+    '➕ สร้างบัญชีเดียว': '➕ Create one account', '📋 สร้างหลายบัญชีทีเดียว (Batch)': '📋 Create many accounts (Batch)',
+    'ชื่อที่จะแสดง': 'Display name', 'รหัสผ่านเริ่มต้น': 'Initial password',
+    'อีเมล (1 บรรทัดต่อ 1 คน) — ใส่ชื่อได้โดยคั่นด้วยจุลภาค': 'Emails (one per line) — add a name after a comma',
+    'รหัสผ่านเริ่มต้น (ใช้ร่วมกันทุกคน)': 'Initial password (shared by all)', 'สร้างทั้งหมด': 'Create all',
+    '* ทุกบัญชีจะได้รหัสผ่านเริ่มต้นเดียวกัน — แนะนำให้แจ้งผู้ใช้เปลี่ยน/รีเซ็ตภายหลัง · ระบบข้ามอีเมลที่ซ้ำหรือไม่ถูกต้องให้อัตโนมัติ': '* All accounts share the same initial password — advise users to change/reset it later · duplicate or invalid emails are skipped automatically',
+    'รหัสใหม่': 'New password', 'รีเซ็ต': 'Reset', 'รีเซ็ตรหัสผ่าน': 'Reset password',
+    'ทุกทีม': 'All teams',
     'อีเมลนี้มีอยู่แล้ว': 'This email already exists', 'สร้างไม่สำเร็จ': 'Create failed'
   };
 
@@ -135,6 +142,8 @@
     [/^เลือกทั้งทีม \((\d+) คน\)$/, 'Select whole team ($1 people)'],
     [/^มอบหมายเรียบร้อย (\d+) คน ✓$/, 'Assigned to $1 ✓'],
     [/^รายชื่อผู้ใช้ \((\d+)\)$/, 'Users ($1)'],
+    [/^· ผู้ดูแล (\d+) คน$/, '· $1 admins'],
+    [/^สร้างสำเร็จ (\d+) บัญชี \(ข้าม (\d+)\)$/, 'Created $1 accounts (skipped $2)'],
     [/^บล็อก (\d+)$/, 'Block $1'],
     [/^· (\d+) รายการ$/, '· $1 shown'],
     [/^หน้า (\d+) \/ (\d+)$/, 'Page $1 / $2'],
