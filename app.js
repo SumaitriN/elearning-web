@@ -99,14 +99,36 @@ async function go(name, arg) {
 // ---------- หน้าหลัก ----------
 function renderHome(v) {
   const nl = (CATALOG.lessons || []).length, nq = (CATALOG.quizzes || []).length;
+  const admin = ME.role === 'admin';
+  const card = (nav, ic, color, title, desc, meta) => `<div class="tile lcard homecard" data-open="${nav}">
+    <div class="thumb" style="background:${color}1a;color:${color}">${ic}</div>
+    <div style="min-width:0;flex:1">
+      <div class="t" style="font-size:16px">${title}</div>
+      <div class="m" style="margin:3px 0 6px">${desc}</div>
+      <div class="k" style="color:${color}">${meta}</div>
+    </div>
+    <div style="align-self:center;color:${color};font-size:20px">→</div></div>`;
+  let cards = [
+    card('lessons', '📚', '#198E8F', 'บทเรียน', 'เรียนรู้ผ่านวิดีโอ สไลด์ และเนื้อหา', `${nl} บทเรียน`),
+    card('quizzes', '📝', '#F68920', 'แบบทดสอบ', 'ประเมินความรู้ของคุณ', `${nq} ชุด`),
+    card('typing', '⌨️', '#8b5cf6', 'พิมพ์ดีด', 'ฝึกความเร็วและความแม่นยำในการพิมพ์', `4 ชุด`)
+  ];
+  if (admin) cards = cards.concat([
+    card('dashboard', '📊', '#0ea5e9', 'แดชบอร์ดผลสอบ', 'ดูผลสอบและสถิติทั้งหมด', 'สำหรับผู้ดูแล'),
+    card('assign', '📤', '#16a34a', 'มอบหมายงาน', 'มอบหมายบทเรียน/แบบทดสอบให้ทีม', 'สำหรับผู้ดูแล'),
+    card('admin', '👤', '#d64545', 'จัดการผู้ใช้', 'เพิ่ม แก้ไข รีเซ็ตบัญชีผู้ใช้', 'สำหรับผู้ดูแล')
+  ]);
   v.innerHTML = `
-    <div class="eyebrow">ยินดีต้อนรับ</div>
-    <h1>สวัสดี ${esc(ME.name || ME.email)}</h1>
-    <p class="muted">เลือกเรียนบทเรียน หรือทำแบบทดสอบเพื่อประเมินความรู้ของคุณ</p>
-    <div class="grid" style="margin-top:16px">
-      <div class="tile" data-open="lessons"><div class="k">บทเรียน</div><div class="t">เริ่มเรียนรู้</div><div class="m">${nl} บทเรียน</div></div>
-      <div class="tile" data-open="quizzes"><div class="k">แบบทดสอบ</div><div class="t">ทำข้อสอบ</div><div class="m">${nq} ชุด</div></div>
-    </div>`;
+    <div class="hero">
+      <div class="hero-logo"><img src="${window.LOGO_MARK}" alt="" style="height:52px"></div>
+      <div style="min-width:0">
+        <div style="font-size:12px;letter-spacing:.08em;opacity:.9;font-weight:600">DIGISERVE E-LEARNING</div>
+        <h1 style="margin:5px 0;color:#fff;font-size:26px">สวัสดี ${esc(ME.name || ME.email)} 👋</h1>
+        <div style="opacity:.95;font-size:14px">${admin ? 'ผู้ดูแลระบบ · ยินดีต้อนรับกลับมา' : 'ยินดีต้อนรับสู่ระบบอบรมและทดสอบออนไลน์'}</div>
+      </div>
+    </div>
+    <div class="section-title" style="margin-top:20px">เมนูหลัก</div>
+    <div class="cardgrid">${cards.join('')}</div>`;
   v.querySelectorAll('[data-open]').forEach(t => t.addEventListener('click', () => go(t.getAttribute('data-open'))));
 }
 
