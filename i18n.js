@@ -26,7 +26,7 @@
     // หน้าหลัก
     'ยินดีต้อนรับ': 'Welcome',
     'เลือกเรียนบทเรียน หรือทำแบบทดสอบเพื่อประเมินความรู้ของคุณ': 'Choose a lesson or take a quiz to assess your knowledge.',
-    'เริ่มเรียนรู้': 'Start learning', 'ทำข้อสอบ': 'Take a quiz',
+    'เริ่มเรียนรู้': 'Start learning', 'ทำข้อสอบ': 'Take a quiz', '▶ เริ่มเรียน': '▶ Start',
     // บทเรียน
     'เช็คความเข้าใจ': 'Check your understanding',
     '✅ เรียนจบบทนี้แล้ว': '✅ You have completed this lesson',

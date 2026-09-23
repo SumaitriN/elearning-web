@@ -120,15 +120,31 @@ function teamBar() {
     <select id="teamSel" style="padding:8px 11px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px">${opts}</select></div>`;
 }
 
+// เลือกไอคอน+สีตามหมวด/ชื่อ ให้การ์ดบทเรียนน่าสนใจ
+function topicIcon(txt) {
+  const s = String(txt || '');
+  if (/customer service|บริการ|ลูกค้า|call|chat/i.test(s)) return ['🎧', '#21BDBE'];
+  if (/pdpa|compliance|risk|กฎ|ความเสี่ยง|ข้อมูลส่วนบุคคล/i.test(s)) return ['🛡️', '#F68920'];
+  if (/orientation|foundation|day 1|ปฐมนิเทศ|เริ่ม/i.test(s)) return ['🚀', '#8b5cf6'];
+  if (/soft skill|ทักษะ|communication|สื่อสาร/i.test(s)) return ['💬', '#16a34a'];
+  if (/overview|pro app|makro|marketplace|shop|เครื่องมือ|tool/i.test(s)) return ['🧭', '#0ea5e9'];
+  if (/pdpa law|กฎหมาย/i.test(s)) return ['⚖️', '#d64545'];
+  return ['📘', '#198E8F'];
+}
 function renderList(v, kind) {
   const items = kind === 'lesson' ? CATALOG.lessons : CATALOG.quizzes;
   const title = kind === 'lesson' ? 'บทเรียน' : 'แบบทดสอบ';
+  const thumb = (ic) => `<div class="thumb" style="background:${ic[1]}1a;color:${ic[1]}">${ic[0]}</div>`;
   const body = (!items || !items.length)
     ? `<div class="card muted">ยังไม่มีรายการ</div>`
-    : `<div class="grid">` + items.map(it => kind === 'lesson'
-        ? `<div class="tile" data-id="${it.id}"><div class="k">${esc(it.section || 'บทเรียน')}</div><div class="t">${esc(it.title)}</div></div>`
-        : `<div class="tile" data-id="${it.id}"><div class="k">แบบทดสอบ</div><div class="t">${esc(it.title)}</div><div class="m">${it.n} ข้อ · ${it.minutes} นาที · ผ่าน ${it.pass}%</div></div>`
-      ).join('') + `</div>`;
+    : `<div class="cardgrid">` + items.map(it => {
+        if (kind === 'lesson') {
+          const ic = topicIcon((it.section || '') + ' ' + it.title);
+          return `<div class="tile lcard" data-id="${it.id}">${thumb(ic)}<div style="min-width:0"><div class="k">${esc(it.section || 'บทเรียน')}</div><div class="t">${esc(it.title)}</div><div class="m">▶ เริ่มเรียน</div></div></div>`;
+        }
+        const ic = topicIcon(it.title);
+        return `<div class="tile lcard" data-id="${it.id}">${thumb(['📝', ic[1]])}<div style="min-width:0"><div class="k">แบบทดสอบ</div><div class="t">${esc(it.title)}</div><div class="m">${it.n} ข้อ · ${it.minutes} นาที · ผ่าน ${it.pass}%</div></div></div>`;
+      }).join('') + `</div>`;
   v.innerHTML = `<h1>${title}</h1>` + teamBar() + body;
   const tsel = $('#teamSel');
   if (tsel) tsel.addEventListener('change', async (e) => { CATALOG = await rpc('app_catalog', { p_team: e.target.value }); renderList(v, kind); });
