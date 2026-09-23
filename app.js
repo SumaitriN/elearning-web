@@ -793,8 +793,17 @@ async function renderTyping(v) {
   try { (await rpc('app_typing_mine')).forEach(r => best[r.set] = r); } catch (_) {}
   v.innerHTML = `<h1>ข้อสอบพิมพ์ดีด</h1>
     <p class="muted">พิมพ์ตามข้อความให้เร็วและแม่นยำที่สุดใน ${TYPING_SECS} วินาที · วัดผลเป็น WPM (คำ/นาที) และความแม่นยำ</p>
-    <div class="grid">${TYPING.map(t => `<div class="tile" data-id="${t.id}"><div class="k">${t.lang === 'th' ? 'ภาษาไทย' : 'English'}</div><div class="t">${esc(t.title)}</div>
-      <div class="m">${best[t.id] ? `สถิติดีสุด: ${best[t.id].wpm} WPM · แม่นยำ ${best[t.id].acc}%` : 'ยังไม่เคยทำ'}</div></div>`).join('')}</div>`;
+    <div class="cardgrid">${TYPING.map(t => {
+      const c = t.lang === 'th' ? '#198E8F' : '#8b5cf6', flag = t.lang === 'th' ? '🇹🇭' : '🇬🇧';
+      const b = best[t.id];
+      return `<div class="tile lcard" data-id="${t.id}">
+        <div class="thumb" style="background:${c}1a;color:${c};font-size:26px">⌨️</div>
+        <div style="flex:1;min-width:0">
+          <div class="k" style="color:${c}">${flag} ${t.lang === 'th' ? 'ภาษาไทย' : 'English'}</div>
+          <div class="t">${esc(t.title)}</div>
+          <div class="m">${b ? `🏆 สถิติดีสุด: ${b.wpm} WPM · แม่นยำ ${b.acc}%` : '▶ ยังไม่เคยทำ — เริ่มเลย'}</div>
+        </div></div>`;
+    }).join('')}</div>`;
   v.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => runTyping(v, TYPING.find(t => t.id === el.getAttribute('data-id')))));
 }
 function runTyping(v, set) {
