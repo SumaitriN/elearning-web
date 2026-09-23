@@ -441,8 +441,10 @@ async function renderDashboard(v) {
   v.innerHTML = `<h1>แดชบอร์ดผลสอบ</h1><div class="muted">กำลังโหลด...</div>`;
   let rows;
   try { rows = await rpc('app_admin_results'); } catch (e) { v.innerHTML = `<div class="card">โหลดข้อมูลไม่สำเร็จ</div>`; return; }
-  const sel = { team: '', quiz: '', res: '', q: '', mteam: '', mq: '' };
+  const sel = { team: '', quiz: '', res: '', q: '', mteam: '', mq: '', aSort: 'date', aDir: 'desc', aPage: 0 };
   const fmtd = (s) => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('th-TH') + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }); };
+  const dateOnly = (s) => { const d = new Date(s); return isNaN(d) ? '' : d.toISOString().slice(0, 10); };
+  let curF = [];
   const teams = [...new Set(rows.map(r => r.team).filter(Boolean))];
   const quizzes = [...new Set(rows.map(r => r.quiz).filter(Boolean))];
   const PAL = ['#198E8F', '#21BDBE', '#F68920', '#FCBC17', '#8b5cf6', '#0ea5e9', '#16a34a', '#e05252'];
@@ -503,12 +505,88 @@ async function renderDashboard(v) {
     a.download = 'results_by_trainee.csv'; a.click();
   }
 
+  // ลิงก์ชีตต้นทางของแต่ละชุดสอบ (backend result sheets)
+  const SHEET_BASE = 'https://docs.google.com/spreadsheets/d/1nCdV49G1GG8DpSb5U5fiGy-3kdPbHnHNPt7c1x8mVKU/edit?gid=';
+  const SHEET_LINKS = {
+    'Soft Skill': SHEET_BASE + '577603034',
+    'PDPA': SHEET_BASE + '1793217909',
+    'Risk Management': SHEET_BASE + '1229715473'
+  };
+  const AKEY = { date: 'created', trainee: 'name', test: 'quiz', score: 'score', pct: 'pct', result: 'pass' };
+
+  function drawAttempts() {
+    const wrap = $('#attemptsWrap'); if (!wrap) return;
+    const k = AKEY[sel.aSort] || 'created', dir = sel.aDir === 'asc' ? 1 : -1;
+    const sorted = curF.slice().sort((a, b) => {
+      let x, y;
+      if (sel.aSort === 'date') { x = +new Date(a.created) || 0; y = +new Date(b.created) || 0; }
+      else if (sel.aSort === 'trainee' || sel.aSort === 'test') return dir * String(a[k] || '').localeCompare(String(b[k] || ''));
+      else if (sel.aSort === 'result') { x = a.pass ? 1 : 0; y = b.pass ? 1 : 0; }
+      else { x = +a[k] || 0; y = +b[k] || 0; }
+      return dir * (x - y);
+    });
+    const per = 12, pages = Math.max(1, Math.ceil(sorted.length / per));
+    if (sel.aPage >= pages) sel.aPage = pages - 1; if (sel.aPage < 0) sel.aPage = 0;
+    const page = sorted.slice(sel.aPage * per, sel.aPage * per + per);
+    const arrow = key => sel.aSort === key ? (sel.aDir === 'asc' ? ' ▲' : ' ▼') : ' ⇅';
+    const th = (key, label, extra) => `<th data-sort="${key}" style="padding:11px 14px;cursor:pointer;user-select:none;white-space:nowrap;${extra || 'text-align:left'}">${label}<span style="opacity:.6">${arrow(key)}</span></th>`;
+    wrap.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:var(--teal-700,#198E8F);color:#fff">
+        ${th('date', 'วันที่')}${th('trainee', 'ชื่อ')}${th('test', 'ชุดข้อสอบ')}
+        ${th('score', 'คะแนน', 'text-align:center')}${th('pct', '%', 'text-align:center')}${th('result', 'ผล', 'text-align:center')}</tr></thead>
+      <tbody>${page.length ? page.map(r => `<tr style="border-top:1px solid var(--line)">
+        <td style="padding:9px 14px;white-space:nowrap">${dateOnly(r.created)}</td>
+        <td style="padding:9px 14px;font-weight:500">${esc(r.name || '')}</td>
+        <td style="padding:9px 14px">${esc(r.quiz || '')}</td>
+        <td style="padding:9px 14px;text-align:center">${r.score}/${r.total}</td>
+        <td style="padding:9px 14px;text-align:center">${r.pct}%</td>
+        <td style="padding:9px 14px;text-align:center"><span class="st ${r.pass ? 'ok' : ''}" style="${r.pass ? '' : 'background:#FBEAEA;color:var(--danger)'}">${r.pass ? 'ผ่าน' : 'ไม่ผ่าน'}</span></td>
+      </tr>`).join('') : `<tr><td colspan="6" style="padding:22px;text-align:center;color:var(--muted)">ไม่มีข้อมูล</td></tr>`}</tbody></table>
+      <div style="display:flex;justify-content:flex-end;align-items:center;gap:12px;padding:12px 14px;color:var(--muted);font-size:13px">
+        <button class="btn btn-ghost" id="aPrev" style="padding:6px 12px" ${sel.aPage === 0 ? 'disabled' : ''}>‹ ก่อนหน้า</button>
+        <span>หน้า ${sel.aPage + 1} / ${pages}</span>
+        <button class="btn btn-ghost" id="aNext" style="padding:6px 12px" ${sel.aPage >= pages - 1 ? 'disabled' : ''}>ถัดไป ›</button>
+      </div>`;
+    wrap.querySelectorAll('[data-sort]').forEach(h => h.addEventListener('click', () => {
+      const key = h.getAttribute('data-sort');
+      if (sel.aSort === key) sel.aDir = sel.aDir === 'asc' ? 'desc' : 'asc';
+      else { sel.aSort = key; sel.aDir = (key === 'trainee' || key === 'test') ? 'asc' : 'desc'; }
+      sel.aPage = 0; drawAttempts();
+    }));
+    const p = $('#aPrev'), n = $('#aNext');
+    if (p) p.addEventListener('click', () => { sel.aPage--; drawAttempts(); });
+    if (n) n.addEventListener('click', () => { sel.aPage++; drawAttempts(); });
+    const cnt = $('#attemptsCount'); if (cnt) { cnt.textContent = '· ' + curF.length + ' รายการ'; if (window.LANG === 'en' && window.translateEl) window.translateEl(cnt.parentNode); }
+  }
+  function exportResults() {
+    const head = ['วันที่', 'ชื่อ', 'อีเมล', 'ทีม', 'ชุดข้อสอบ', 'คะแนน', 'เต็ม', '%', 'ผล'];
+    const lines = [head.join(',')].concat(curF.map(r => [fmtd(r.created), r.name, r.email, r.team, r.quiz, r.score, r.total, r.pct, r.pass ? 'ผ่าน' : 'ไม่ผ่าน'].map(x => `"${String(x == null ? '' : x).replace(/"/g, '""')}"`).join(',')));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'results.csv'; a.click();
+  }
+  function drawLinks() {
+    const wrap = $('#linksWrap'); if (!wrap) return;
+    const present = [...new Set(curF.map(r => r.quiz))].filter(q => SHEET_LINKS[q]);
+    if (!present.length) { wrap.innerHTML = ''; return; }
+    const AC = ['#F68920', '#21BDBE', '#8b5cf6', '#16a34a', '#e05252'];
+    wrap.innerHTML = `<div class="card">
+      <h2 style="font-size:16px;margin:0 0 2px">Tests &amp; links <span class="muted" style="font-weight:400;font-size:13px">— ชีตต้นทางผลสอบ</span></h2>
+      <div style="overflow:auto;margin-top:10px"><table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:#f0faf9;color:var(--teal-700)"><th style="text-align:left;padding:10px 14px">ชุดข้อสอบ</th><th style="padding:10px 14px">ชีตต้นทาง (ผลข้อสอบ)</th></tr></thead>
+        <tbody>${present.map((q, i) => `<tr style="border-top:1px solid var(--line)">
+          <td style="padding:10px 14px;border-left:4px solid ${AC[i % AC.length]};font-weight:500">${esc(q)}</td>
+          <td style="padding:10px 14px;text-align:center"><a class="btn btn-ghost" href="${esc(SHEET_LINKS[q])}" target="_blank" rel="noopener" style="padding:6px 14px;text-decoration:none">เปิดชีต ↗</a></td>
+        </tr>`).join('')}</tbody></table></div></div>`;
+  }
+
   function draw() {
     if (!sel.mteam && teams.length) sel.mteam = teams[0];
     Object.values(charts).forEach(c => { try { c.destroy(); } catch (_) {} }); charts = {};
     const f = rows.filter(r => (!sel.team || r.team === sel.team) && (!sel.quiz || r.quiz === sel.quiz)
       && (!sel.res || (sel.res === 'pass' ? r.pass : !r.pass))
       && (!sel.q || String(r.name || '').toLowerCase().includes(sel.q)));
+    curF = f; sel.aPage = 0;
     const attempts = f.length, trainees = new Set(f.map(r => r.email)).size, passed = f.filter(r => r.pass).length;
     const rate = attempts ? Math.round(passed / attempts * 1000) / 10 : 0;
     const avg = attempts ? Math.round(f.reduce((a, b) => a + (+b.pct || 0), 0) / attempts * 10) / 10 : 0;
@@ -526,21 +604,38 @@ async function renderDashboard(v) {
         <select id="fRes" style="${ss}"><option value="">ทุกผล</option><option value="pass" ${sel.res==='pass'?'selected':''}>ผ่าน</option><option value="fail" ${sel.res==='fail'?'selected':''}>ไม่ผ่าน</option></select>
         <input id="fQ" placeholder="ค้นหาชื่อ..." style="${ss};flex:1;min-width:140px" value="${esc(sel.q)}">
         <button class="btn btn-ghost" id="fReset">ล้างตัวกรอง</button>
-        <button class="btn btn-teal" id="dCsv">⬇ CSV</button>
       </div>
       <div class="grid" style="grid-template-columns:1.3fr 1fr;margin-bottom:16px">
         <div class="card"><h2 style="font-size:15px">อัตราสอบผ่านแต่ละชุด</h2><div style="position:relative;height:300px"><canvas id="cTest"></canvas></div></div>
         <div class="card"><h2 style="font-size:15px">ผลรวม ผ่าน/ไม่ผ่าน</h2><div style="position:relative;height:300px"><canvas id="cPie"></canvas></div></div>
       </div>
       <div class="card"><h2 style="font-size:15px">จำนวนครั้งสอบตามเดือน</h2><div style="position:relative;height:260px"><canvas id="cTime"></canvas></div></div>
-      <div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px">
-        <h2 style="font-size:15px;margin:0">ผลรายคน (ตาราง)</h2>
-        <span class="muted">ทีม:</span>
-        <select id="mTeamSel" style="${ss}">${opt(teams, sel.mteam)}</select>
-        <input id="mSearch" placeholder="ค้นหาชื่อ..." style="${ss};flex:1;min-width:140px" value="${esc(sel.mq)}">
-        <button class="btn btn-teal" id="mCsv">⬇ CSV</button>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+          <h2 style="font-size:16px;margin:0">ผลรายคน (ตาราง) <span class="muted" style="font-weight:400;font-size:13px">— คะแนนล่าสุดของแต่ละคนต่อชุด</span></h2>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <span class="muted">ทีม:</span>
+            <select id="mTeamSel" style="${ss}">${opt(teams, sel.mteam)}</select>
+            <input id="mSearch" placeholder="ค้นหาชื่อ..." style="${ss};width:150px" value="${esc(sel.mq)}">
+            <button class="btn btn-ghost" id="mCsv">⬇ CSV</button>
+          </div>
+        </div>
+        <div id="matrixWrap" style="overflow:auto;border:1px solid var(--line);border-radius:12px"></div>
       </div>
-      <div id="matrixWrap" class="card" style="padding:0;overflow:auto"></div>`;
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div>
+            <h2 style="font-size:16px;margin:0">รายการสอบทั้งหมด <span class="muted" style="font-weight:400;font-size:13px" id="attemptsCount">· ${f.length} รายการ</span></h2>
+            <div class="muted" style="font-size:12.5px;margin-top:2px">คลิกหัวคอลัมน์เพื่อเรียงลำดับ · ดาวน์โหลด = ข้อมูลตามตัวกรองปัจจุบัน</div>
+          </div>
+          <button class="btn btn-ghost" id="aDl">⬇ ดาวน์โหลด CSV</button>
+        </div>
+        <div id="attemptsWrap" style="overflow:auto;border:1px solid var(--line);border-radius:12px;margin-top:12px"></div>
+      </div>
+
+      <div id="linksWrap"></div>`;
     const qs = quizzes.filter(q => f.some(r => r.quiz === q));
     const byQ = qs.map(q => { const rr = f.filter(r => r.quiz === q); const p = rr.filter(r => r.pass).length; return rr.length ? Math.round(p / rr.length * 1000) / 10 : 0; });
     if (window.Chart) {
@@ -555,17 +650,12 @@ async function renderDashboard(v) {
     $('#fRes').addEventListener('change', e => { sel.res = e.target.value; draw(); });
     $('#fQ').addEventListener('input', e => { sel.q = e.target.value.toLowerCase(); clearTimeout(window.__dq); window.__dq = setTimeout(draw, 350); });
     $('#fReset').addEventListener('click', () => { sel.team = sel.quiz = sel.res = sel.q = ''; draw(); });
-    $('#dCsv').addEventListener('click', () => {
-      const head = ['วันที่', 'ชื่อ', 'อีเมล', 'ทีม', 'ชุดข้อสอบ', 'คะแนน', 'เต็ม', '%', 'ผล'];
-      const lines = [head.join(',')].concat(f.map(r => [fmtd(r.created), r.name, r.email, r.team, r.quiz, r.score, r.total, r.pct, r.pass ? 'ผ่าน' : 'ไม่ผ่าน'].map(x => `"${String(x == null ? '' : x).replace(/"/g, '""')}"`).join(',')));
-      const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'results.csv'; a.click();
-    });
+    $('#aDl').addEventListener('click', exportResults);
     const qi = $('#fQ'); if (sel.q && qi) { qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); }
     $('#mTeamSel').addEventListener('change', e => { sel.mteam = e.target.value; drawMatrix(); });
     $('#mSearch').addEventListener('input', e => { sel.mq = e.target.value.trim().toLowerCase(); drawMatrix(); });
     $('#mCsv').addEventListener('click', exportMatrix);
-    drawMatrix();
+    drawMatrix(); drawAttempts(); drawLinks();
   }
   draw();
 }

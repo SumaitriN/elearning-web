@@ -59,6 +59,11 @@
     'แสดง 300 แถวแรก · ดาวน์โหลด CSV เพื่อดูทั้งหมด': 'Showing first 300 rows · Download CSV for all',
     'ผลรายคน (ตาราง)': 'Results by trainee', 'ผู้เรียน': 'Trainee', 'สถานะ': 'Status',
     'ผ่านทั้งหมด': 'All passed', 'กำลังดำเนินการ': 'In progress',
+    '— คะแนนล่าสุดของแต่ละคนต่อชุด': "— each person's latest score per test",
+    'รายการสอบทั้งหมด': 'All attempts',
+    'คลิกหัวคอลัมน์เพื่อเรียงลำดับ · ดาวน์โหลด = ข้อมูลตามตัวกรองปัจจุบัน': 'Click a column header to sort · Download = data for current filter',
+    '⬇ ดาวน์โหลด CSV': '⬇ Download CSV', '‹ ก่อนหน้า': '‹ Prev', 'ถัดไป ›': 'Next ›',
+    '— ชีตต้นทางผลสอบ': '— backend result sheets', 'ชีตต้นทาง (ผลข้อสอบ)': 'Backend sheet (results)', 'เปิดชีต ↗': 'Open sheet ↗',
     // พิมพ์ดีด
     'ข้อสอบพิมพ์ดีด': 'Typing Test', 'ภาษาไทย': 'Thai', 'ยังไม่เคยทำ': 'Not attempted',
     'พิมพ์ตามข้อความให้เร็วและแม่นยำที่สุดใน 60 วินาที · วัดผลเป็น WPM (คำ/นาที) และความแม่นยำ':
@@ -115,6 +120,8 @@
     [/^มอบหมายเรียบร้อย (\d+) คน ✓$/, 'Assigned to $1 ✓'],
     [/^รายชื่อผู้ใช้ \((\d+)\)$/, 'Users ($1)'],
     [/^บล็อก (\d+)$/, 'Block $1'],
+    [/^· (\d+) รายการ$/, '· $1 shown'],
+    [/^หน้า (\d+) \/ (\d+)$/, 'Page $1 / $2'],
     [/^แก้เนื้อหา: (.+)$/, 'Edit content: $1'],
     // prefix (คงส่วนเนื้อหาไทยไว้ด้านหลัง)
     [/^✓ ถูกต้อง/, '✓ Correct'],
