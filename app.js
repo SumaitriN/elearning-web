@@ -533,23 +533,6 @@ async function renderDashboard(v) {
         <div class="card"><h2 style="font-size:15px">ผลรวม ผ่าน/ไม่ผ่าน</h2><div style="position:relative;height:300px"><canvas id="cPie"></canvas></div></div>
       </div>
       <div class="card"><h2 style="font-size:15px">จำนวนครั้งสอบตามเดือน</h2><div style="position:relative;height:260px"><canvas id="cTime"></canvas></div></div>
-      <div class="card" style="padding:0;overflow:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead><tr style="background:#f0faf9;color:var(--teal-700)">
-            <th style="text-align:left;padding:10px 12px">วันที่</th><th style="text-align:left;padding:10px 12px">ชื่อ</th>
-            <th style="text-align:left;padding:10px 12px">ทีม</th><th style="text-align:left;padding:10px 12px">ชุดข้อสอบ</th>
-            <th style="padding:10px 12px">คะแนน</th><th style="padding:10px 12px">%</th><th style="padding:10px 12px">ผล</th></tr></thead>
-          <tbody>${f.length ? f.slice(0, 300).map(r => `<tr style="border-top:1px solid var(--line)">
-            <td style="padding:8px 12px;white-space:nowrap">${fmtd(r.created)}</td>
-            <td style="padding:8px 12px">${esc(r.name || '')}</td><td style="padding:8px 12px">${esc(r.team || '')}</td>
-            <td style="padding:8px 12px">${esc(r.quiz || '')}</td>
-            <td style="padding:8px 12px;text-align:center">${r.score}/${r.total}</td>
-            <td style="padding:8px 12px;text-align:center">${r.pct}</td>
-            <td style="padding:8px 12px;text-align:center"><span class="st ${r.pass ? 'ok' : ''}" style="${r.pass ? '' : 'background:#FBEAEA;color:var(--danger)'}">${r.pass ? 'ผ่าน' : 'ไม่ผ่าน'}</span></td>
-          </tr>`).join('') : `<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">ไม่มีข้อมูล</td></tr>`}</tbody>
-        </table>
-        ${f.length > 300 ? `<div class="muted" style="padding:10px;text-align:center">แสดง 300 แถวแรก · ดาวน์โหลด CSV เพื่อดูทั้งหมด</div>` : ''}
-      </div>
       <div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px">
         <h2 style="font-size:15px;margin:0">ผลรายคน (ตาราง)</h2>
         <span class="muted">ทีม:</span>
