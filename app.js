@@ -740,7 +740,7 @@ async function renderAssign(v) {
   if (ME.role !== 'admin') { v.innerHTML = `<div class="card">เฉพาะผู้ดูแลระบบ</div>`; return; }
   v.innerHTML = `<h1>มอบหมายงาน</h1><div class="muted">กำลังโหลด...</div>`;
   const teams = CATALOG.teams || [];
-  const st = { items: [], users: [], selItems: new Set(), selUsers: new Set(), isearch: '', due: '' };
+  const st = { items: [], users: [], selItems: new Set(), selUsers: new Set(), isearch: '', usearch: '', due: '' };
   st.users = await rpc('app_admin_list_users', {});
   for (const t of teams) {
     try {
@@ -756,45 +756,63 @@ async function renderAssign(v) {
   function draw() {
     const lessons = st.items.filter(i => i.type === 'lesson' && (!st.isearch || i.title.toLowerCase().includes(st.isearch)));
     const quizzes = st.items.filter(i => i.type === 'quiz' && (!st.isearch || i.title.toLowerCase().includes(st.isearch)));
-    const row = it => `<label style="display:block;padding:4px 2px;cursor:pointer"><input type="checkbox" class="ichk" data-k="${key(it)}" ${st.selItems.has(key(it)) ? 'checked' : ''}> ${it.type === 'lesson' ? '📘' : '📝'} ${esc(it.title)} <span class="muted" style="font-size:12px">(${esc(it.team)})</span></label>`;
+    const uq = st.usearch, fusers = st.users.filter(u => !uq || (u.name || '').toLowerCase().includes(uq) || (u.email || '').toLowerCase().includes(uq));
+    const row = it => `<label class="pick" style="display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:8px;cursor:pointer;${st.selItems.has(key(it)) ? 'background:#edf9f9' : ''}"><input type="checkbox" class="ichk" data-k="${key(it)}" ${st.selItems.has(key(it)) ? 'checked' : ''} style="margin-top:3px"><span>${it.type === 'lesson' ? '📘' : '📝'} ${esc(it.title)} <span class="muted" style="font-size:12px">(${esc(it.team)})</span></span></label>`;
+    const urow = u => `<label class="pick" style="display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:8px;cursor:pointer;${st.selUsers.has(u.id) ? 'background:#edf9f9' : ''}"><input type="checkbox" class="uchk" value="${u.id}" ${st.selUsers.has(u.id) ? 'checked' : ''} style="margin-top:3px"><span>${esc(u.name || u.email)}<br><span class="muted" style="font-size:12px">${esc(u.email)} · ${esc(u.team || '')} · ${dLabel(u.created)}</span></span></label>`;
+    const box = 'max-height:380px;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:8px';
+    const qbtn = 'padding:6px 12px;font-size:13px';
     v.innerHTML = `<h1>มอบหมายงาน</h1>
-      <div class="card">
-        <label style="font-weight:600;display:block;margin-bottom:6px">เลือกบทเรียน / แบบทดสอบ <span class="muted" style="font-weight:400">(เลือกได้หลายรายการ)</span></label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-          <button class="btn btn-ghost" id="iAll" style="padding:6px 12px">เลือกทั้งหมด</button>
-          <button class="btn btn-ghost" id="iClear" style="padding:6px 12px">ล้าง</button>
-          <input id="iSearch" placeholder="ค้นหา..." style="${SS};flex:1;min-width:150px" value="${esc(st.isearch)}">
+      <div class="muted" style="margin-top:-6px;margin-bottom:16px">เลือกบทเรียน/แบบทดสอบ แล้วเลือกผู้รับ กดมอบหมายทีเดียวได้หลายรายการ</div>
+      <div class="grid" style="grid-template-columns:1fr 1fr;align-items:start">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <h2 style="margin:0;font-size:16px">📚 บทเรียน / แบบทดสอบ</h2>
+            <span class="st ok" id="iBadge">${st.selItems.size} รายการ</span>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+            <input id="iSearch" placeholder="🔍 ค้นหาบทเรียน / แบบทดสอบ..." style="${SS};flex:1;min-width:150px" value="${esc(st.isearch)}">
+            <button class="btn btn-ghost" id="iAll" style="${qbtn}">เลือกทั้งหมด</button>
+            <button class="btn btn-ghost" id="iClear" style="${qbtn}">ล้าง</button>
+          </div>
+          <div style="${box}">
+            <div class="muted" style="font-weight:600;margin:4px 0 4px;padding:0 6px">บทเรียน (วิดีโอ+เนื้อหา)</div>
+            ${lessons.length ? lessons.map(row).join('') : '<div class="muted" style="padding:6px">—</div>'}
+            <div class="muted" style="font-weight:600;margin:12px 0 4px;padding:0 6px">แบบทดสอบ</div>
+            ${quizzes.length ? quizzes.map(row).join('') : '<div class="muted" style="padding:6px">—</div>'}
+          </div>
         </div>
-        <div style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:10px 14px">
-          <div class="muted" style="font-weight:600;margin-bottom:4px">บทเรียน (วิดีโอ+เนื้อหา)</div>
-          ${lessons.length ? lessons.map(row).join('') : '<div class="muted" style="padding:4px 0">—</div>'}
-          <div class="muted" style="font-weight:600;margin:12px 0 4px">แบบทดสอบ</div>
-          ${quizzes.length ? quizzes.map(row).join('') : '<div class="muted" style="padding:4px 0">—</div>'}
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <h2 style="margin:0;font-size:16px">👥 ผู้รับมอบหมาย</h2>
+            <span class="st ok" id="uBadge">${st.selUsers.size} คน</span>
+          </div>
+          <input id="uSearch" placeholder="🔍 ค้นหาชื่อ / อีเมล..." style="${SS};width:100%;margin-bottom:10px" value="${esc(st.usearch)}">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+            <button class="btn btn-ghost qf" data-f="today" style="${qbtn}">📅 สร้างวันนี้</button>
+            <button class="btn btn-ghost qf" data-f="new7" style="${qbtn}">🆕 คนใหม่ 7 วัน</button>
+            <button class="btn btn-ghost qf" data-f="Makro" style="${qbtn}">ทั้งทีม Makro</button>
+            <button class="btn btn-ghost qf" data-f="Lotus" style="${qbtn}">ทั้งทีม Lotus</button>
+            <button class="btn btn-ghost qf" data-f="Center" style="${qbtn}">ทีม Center</button>
+            <button class="btn btn-ghost qf" data-f="all" style="${qbtn}">เลือกทั้งหมด</button>
+            <button class="btn btn-ghost qf" data-f="clear" style="${qbtn}">ล้าง</button>
+          </div>
+          <div style="${box}">${fusers.length ? fusers.map(urow).join('') : '<div class="muted" style="padding:6px">ไม่พบ</div>'}</div>
         </div>
-        <div style="margin:16px 0"><label class="muted" style="font-weight:600">กำหนดส่ง (ไม่บังคับ)</label><br><input id="aDue" type="date" style="${SS};margin-top:4px" value="${esc(st.due)}"></div>
-        <label style="font-weight:600;display:block;margin-bottom:6px">มอบหมายให้</label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-          <button class="btn btn-ghost qf" data-f="today" style="padding:6px 12px">📅 สร้างวันนี้</button>
-          <button class="btn btn-ghost qf" data-f="new7" style="padding:6px 12px">🆕 คนใหม่ 7 วัน</button>
-          <button class="btn btn-ghost qf" data-f="Makro" style="padding:6px 12px">ทั้งทีม Makro</button>
-          <button class="btn btn-ghost qf" data-f="Lotus" style="padding:6px 12px">ทั้งทีม Lotus</button>
-          <button class="btn btn-ghost qf" data-f="Center" style="padding:6px 12px">ทีม Center</button>
-          <button class="btn btn-ghost qf" data-f="all" style="padding:6px 12px">เลือกทั้งหมด</button>
-          <button class="btn btn-ghost qf" data-f="clear" style="padding:6px 12px">ล้าง</button>
-        </div>
-        <div style="max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px 12px">
-          ${st.users.map(u => `<label style="display:block;padding:3px 0;cursor:pointer"><input type="checkbox" class="uchk" value="${u.id}" ${st.selUsers.has(u.id) ? 'checked' : ''}> ${esc(u.name || u.email)} <span class="muted" style="font-size:12px">· ${esc(u.email)} · ${esc(u.team || '')} · ${dLabel(u.created)}</span></label>`).join('')}
-        </div>
-        <div class="muted" id="aCount" style="margin-top:8px">เลือกแล้ว: ${st.selItems.size} รายการ · ${st.selUsers.size} คน</div>
-        <div class="login-err" id="aErr" style="margin:10px 0"></div>
-        <button class="btn btn-primary" id="aBtn" style="width:auto;padding:11px 28px">มอบหมายงาน</button>
       </div>
+      <div class="card" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+        <div><label class="muted" style="font-weight:600">กำหนดส่ง (ไม่บังคับ)</label><br><input id="aDue" type="date" style="${SS};margin-top:4px" value="${esc(st.due)}"></div>
+        <div style="flex:1;min-width:120px"></div>
+        <div class="muted" id="aCount" style="font-size:14px">เลือกแล้ว: ${st.selItems.size} รายการ · ${st.selUsers.size} คน</div>
+        <button class="btn btn-primary" id="aBtn" style="width:auto;padding:12px 34px">มอบหมายงาน</button>
+      </div>
+      <div class="login-err" id="aErr" style="margin:-6px 0 12px"></div>
       <div class="card"><h2>งานที่มอบหมายล่าสุด</h2><div id="aList" class="muted">กำลังโหลด...</div></div>`;
-    v.querySelectorAll('.ichk').forEach(c => c.addEventListener('change', e => { const k = e.target.getAttribute('data-k'); if (e.target.checked) st.selItems.add(k); else st.selItems.delete(k); redrawCount(); }));
+    v.querySelectorAll('.ichk').forEach(c => c.addEventListener('change', e => { const k = e.target.getAttribute('data-k'); if (e.target.checked) st.selItems.add(k); else st.selItems.delete(k); e.target.closest('.pick').style.background = e.target.checked ? '#edf9f9' : ''; redrawCount(); }));
     $('#iAll').addEventListener('click', () => { [...lessons, ...quizzes].forEach(it => st.selItems.add(key(it))); draw(); });
     $('#iClear').addEventListener('click', () => { st.selItems.clear(); draw(); });
     $('#iSearch').addEventListener('input', e => { st.isearch = e.target.value.trim().toLowerCase(); draw(); const s = $('#iSearch'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); });
-    v.querySelectorAll('.uchk').forEach(c => c.addEventListener('change', e => { if (e.target.checked) st.selUsers.add(e.target.value); else st.selUsers.delete(e.target.value); redrawCount(); }));
+    v.querySelectorAll('.uchk').forEach(c => c.addEventListener('change', e => { if (e.target.checked) st.selUsers.add(e.target.value); else st.selUsers.delete(e.target.value); e.target.closest('.pick').style.background = e.target.checked ? '#edf9f9' : ''; redrawCount(); }));
+    $('#uSearch').addEventListener('input', e => { st.usearch = e.target.value.trim().toLowerCase(); draw(); const s = $('#uSearch'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); });
     v.querySelectorAll('.qf').forEach(b => b.addEventListener('click', () => {
       const f = b.getAttribute('data-f');
       if (f === 'clear') st.selUsers.clear();
@@ -818,7 +836,12 @@ async function renderAssign(v) {
     });
     loadList();
   }
-  function redrawCount() { const el = $('#aCount'); if (el) el.textContent = `เลือกแล้ว: ${st.selItems.size} รายการ · ${st.selUsers.size} คน`; }
+  function redrawCount() {
+    const c = $('#aCount'); if (c) c.textContent = `เลือกแล้ว: ${st.selItems.size} รายการ · ${st.selUsers.size} คน`;
+    const ib = $('#iBadge'); if (ib) ib.textContent = `${st.selItems.size} รายการ`;
+    const ub = $('#uBadge'); if (ub) ub.textContent = `${st.selUsers.size} คน`;
+    if (window.LANG === 'en' && window.translateEl) { [c, $('#iBadge'), $('#uBadge')].forEach(el => el && window.translateEl(el)); }
+  }
   async function loadList() {
     const rows = await rpc('app_admin_assignments');
     const el = $('#aList'); if (!el) return;
