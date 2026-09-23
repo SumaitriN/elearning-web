@@ -441,7 +441,7 @@ async function renderDashboard(v) {
   v.innerHTML = `<h1>แดชบอร์ดผลสอบ</h1><div class="muted">กำลังโหลด...</div>`;
   let rows;
   try { rows = await rpc('app_admin_results'); } catch (e) { v.innerHTML = `<div class="card">โหลดข้อมูลไม่สำเร็จ</div>`; return; }
-  const sel = { team: '', quiz: '', res: '', q: '' };
+  const sel = { team: '', quiz: '', res: '', q: '', mteam: '', mq: '' };
   const fmtd = (s) => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('th-TH') + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }); };
   const teams = [...new Set(rows.map(r => r.team).filter(Boolean))];
   const quizzes = [...new Set(rows.map(r => r.quiz).filter(Boolean))];
@@ -451,7 +451,60 @@ async function renderDashboard(v) {
   const opt = (arr, cur) => arr.map(x => `<option value="${esc(x)}" ${cur === x ? 'selected' : ''}>${esc(x)}</option>`).join('');
   let charts = {};
 
+  function bestAttempt(email, quiz) {
+    const rs = rows.filter(r => r.email === email && r.quiz === quiz);
+    if (!rs.length) return null;
+    return rs.reduce((a, b) => (+b.pct > +a.pct ? b : a));
+  }
+  function matrixData() {
+    const team = sel.mteam;
+    const trows = rows.filter(r => r.team === team);
+    const cols = [...new Set(trows.map(r => r.quiz).filter(Boolean))].sort();
+    const byE = {};
+    trows.forEach(r => { const k = r.email || r.name; if (!byE[k]) byE[k] = { name: r.name, email: r.email }; });
+    let people = Object.values(byE);
+    if (sel.mq) people = people.filter(p => (p.name || '').toLowerCase().includes(sel.mq) || (p.email || '').toLowerCase().includes(sel.mq));
+    people.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    people.forEach(p => {
+      p.cells = cols.map(c => bestAttempt(p.email, c));
+      p.passed = p.cells.filter(b => b && b.pass).length;
+    });
+    return { cols, people };
+  }
+  function drawMatrix() {
+    const wrap = $('#matrixWrap'); if (!wrap) return;
+    const { cols, people } = matrixData(); const N = cols.length;
+    const th = 'padding:10px 12px;white-space:nowrap';
+    wrap.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:#f0faf9;color:var(--teal-700)">
+        <th style="text-align:left;${th};position:sticky;left:0;background:#f0faf9">ผู้เรียน</th>
+        ${cols.map(c => `<th style="${th}">${esc(c)}</th>`).join('')}
+        <th style="${th}">ผ่าน</th><th style="${th}">สถานะ</th></tr></thead>
+      <tbody>${people.length ? people.map(p => {
+        const done = N > 0 && p.passed === N;
+        return `<tr style="border-top:1px solid var(--line)">
+          <td style="padding:7px 12px;position:sticky;left:0;background:#fff;font-weight:500">${esc(p.name || p.email)}</td>
+          ${p.cells.map(b => b
+            ? `<td style="text-align:center;padding:7px 10px;font-weight:600;${b.pass ? 'background:#EAF7EE;color:#16a34a' : 'background:#FBEAEA;color:#e05252'}">${b.score}/${b.total}</td>`
+            : `<td style="text-align:center;padding:7px 10px;color:var(--muted)">—</td>`).join('')}
+          <td style="text-align:center;padding:7px 10px;font-weight:600">${p.passed}/${N}</td>
+          <td style="text-align:center;padding:7px 10px"><span class="st ${done ? 'ok' : ''}" style="${done ? '' : 'background:#FFF3E6;color:#F68920'}">${done ? 'ผ่านทั้งหมด' : 'กำลังดำเนินการ'}</span></td></tr>`;
+      }).join('') : `<tr><td colspan="${N + 3}" style="padding:20px;text-align:center;color:var(--muted)">ไม่มีข้อมูล</td></tr>`}</tbody></table>`;
+  }
+  function exportMatrix() {
+    const { cols, people } = matrixData(); const N = cols.length;
+    const head = ['ผู้เรียน', 'อีเมล', ...cols, 'ผ่าน', 'สถานะ'];
+    const lines = [head.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')].concat(
+      people.map(p => [p.name || '', p.email || '', ...p.cells.map(b => b ? b.score + '/' + b.total : '-'),
+        p.passed + '/' + N, (N > 0 && p.passed === N) ? 'ผ่านทั้งหมด' : 'กำลังดำเนินการ']
+        .map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'results_by_trainee.csv'; a.click();
+  }
+
   function draw() {
+    if (!sel.mteam && teams.length) sel.mteam = teams[0];
     Object.values(charts).forEach(c => { try { c.destroy(); } catch (_) {} }); charts = {};
     const f = rows.filter(r => (!sel.team || r.team === sel.team) && (!sel.quiz || r.quiz === sel.quiz)
       && (!sel.res || (sel.res === 'pass' ? r.pass : !r.pass))
@@ -496,7 +549,15 @@ async function renderDashboard(v) {
           </tr>`).join('') : `<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">ไม่มีข้อมูล</td></tr>`}</tbody>
         </table>
         ${f.length > 300 ? `<div class="muted" style="padding:10px;text-align:center">แสดง 300 แถวแรก · ดาวน์โหลด CSV เพื่อดูทั้งหมด</div>` : ''}
-      </div>`;
+      </div>
+      <div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px">
+        <h2 style="font-size:15px;margin:0">ผลรายคน (ตาราง)</h2>
+        <span class="muted">ทีม:</span>
+        <select id="mTeamSel" style="${ss}">${opt(teams, sel.mteam)}</select>
+        <input id="mSearch" placeholder="ค้นหาชื่อ..." style="${ss};flex:1;min-width:140px" value="${esc(sel.mq)}">
+        <button class="btn btn-teal" id="mCsv">⬇ CSV</button>
+      </div>
+      <div id="matrixWrap" class="card" style="padding:0;overflow:auto"></div>`;
     const qs = quizzes.filter(q => f.some(r => r.quiz === q));
     const byQ = qs.map(q => { const rr = f.filter(r => r.quiz === q); const p = rr.filter(r => r.pass).length; return rr.length ? Math.round(p / rr.length * 1000) / 10 : 0; });
     if (window.Chart) {
@@ -518,6 +579,10 @@ async function renderDashboard(v) {
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'results.csv'; a.click();
     });
     const qi = $('#fQ'); if (sel.q && qi) { qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); }
+    $('#mTeamSel').addEventListener('change', e => { sel.mteam = e.target.value; drawMatrix(); });
+    $('#mSearch').addEventListener('input', e => { sel.mq = e.target.value.trim().toLowerCase(); drawMatrix(); });
+    $('#mCsv').addEventListener('click', exportMatrix);
+    drawMatrix();
   }
   draw();
 }
