@@ -97,39 +97,103 @@ async function go(name, arg) {
 }
 
 // ---------- หน้าหลัก ----------
-function renderHome(v) {
-  const nl = (CATALOG.lessons || []).length, nq = (CATALOG.quizzes || []).length;
-  const admin = ME.role === 'admin';
-  const card = (nav, ic, color, title, desc, meta) => `<div class="tile lcard homecard" data-open="${nav}">
-    <div class="thumb" style="background:${color}1a;color:${color}">${ic}</div>
-    <div style="min-width:0;flex:1">
-      <div class="t" style="font-size:16px">${title}</div>
-      <div class="m" style="margin:3px 0 6px">${desc}</div>
-      <div class="k" style="color:${color}">${meta}</div>
-    </div>
-    <div style="align-self:center;color:${color};font-size:20px">→</div></div>`;
-  let cards = [
-    card('lessons', '📚', '#198E8F', 'บทเรียน', 'เรียนรู้ผ่านวิดีโอ สไลด์ และเนื้อหา', `${nl} บทเรียน`),
-    card('quizzes', '📝', '#F68920', 'แบบทดสอบ', 'ประเมินความรู้ของคุณ', `${nq} ชุด`),
-    card('typing', '⌨️', '#8b5cf6', 'พิมพ์ดีด', 'ฝึกความเร็วและความแม่นยำในการพิมพ์', `4 ชุด`)
-  ];
-  if (admin) cards = cards.concat([
-    card('dashboard', '📊', '#0ea5e9', 'แดชบอร์ดผลสอบ', 'ดูผลสอบและสถิติทั้งหมด', 'สำหรับผู้ดูแล'),
-    card('assign', '📤', '#16a34a', 'มอบหมายงาน', 'มอบหมายบทเรียน/แบบทดสอบให้ทีม', 'สำหรับผู้ดูแล'),
-    card('admin', '👤', '#d64545', 'จัดการผู้ใช้', 'เพิ่ม แก้ไข รีเซ็ตบัญชีผู้ใช้', 'สำหรับผู้ดูแล')
-  ]);
-  v.innerHTML = `
-    <div class="hero">
+function heroHtml(sub) {
+  return `<div class="hero">
       <div class="hero-logo"><img src="${window.LOGO_MARK}" alt="" style="height:52px"></div>
       <div style="min-width:0">
         <div style="font-size:12px;letter-spacing:.08em;opacity:.9;font-weight:600">DIGISERVE E-LEARNING</div>
         <h1 style="margin:5px 0;color:#fff;font-size:26px">สวัสดี ${esc(ME.name || ME.email)} 👋</h1>
-        <div style="opacity:.95;font-size:14px">${admin ? 'ผู้ดูแลระบบ · ยินดีต้อนรับกลับมา' : 'ยินดีต้อนรับสู่ระบบอบรมและทดสอบออนไลน์'}</div>
+        <div style="opacity:.95;font-size:14px">${sub}</div>
       </div>
-    </div>
-    <div class="section-title" style="margin-top:20px">เมนูหลัก</div>
-    <div class="cardgrid">${cards.join('')}</div>`;
+    </div>`;
+}
+function renderHome(v) {
+  if (ME.role === 'admin') return renderHomeAdmin(v);
+  return renderHomeAgent(v);
+}
+function renderHomeAdmin(v) {
+  const nl = (CATALOG.lessons || []).length, nq = (CATALOG.quizzes || []).length;
+  const card = (nav, ic, color, title, desc, meta) => `<div class="tile lcard homecard" data-open="${nav}">
+    <div class="thumb" style="background:${color}1a;color:${color}">${ic}</div>
+    <div style="min-width:0;flex:1"><div class="t" style="font-size:16px">${title}</div>
+      <div class="m" style="margin:3px 0 6px">${desc}</div><div class="k" style="color:${color}">${meta}</div></div>
+    <div style="align-self:center;color:${color};font-size:20px">→</div></div>`;
+  const cards = [
+    card('lessons', '📚', '#198E8F', 'บทเรียน', 'เรียนรู้ผ่านวิดีโอ สไลด์ และเนื้อหา', `${nl} บทเรียน`),
+    card('quizzes', '📝', '#F68920', 'แบบทดสอบ', 'ประเมินความรู้ของคุณ', `${nq} ชุด`),
+    card('typing', '⌨️', '#8b5cf6', 'พิมพ์ดีด', 'ฝึกความเร็วและความแม่นยำในการพิมพ์', `4 ชุด`),
+    card('dashboard', '📊', '#0ea5e9', 'แดชบอร์ดผลสอบ', 'ดูผลสอบและสถิติทั้งหมด', 'สำหรับผู้ดูแล'),
+    card('assign', '📤', '#16a34a', 'มอบหมายงาน', 'มอบหมายบทเรียน/แบบทดสอบให้ทีม', 'สำหรับผู้ดูแล'),
+    card('admin', '👤', '#d64545', 'จัดการผู้ใช้', 'เพิ่ม แก้ไข รีเซ็ตบัญชีผู้ใช้', 'สำหรับผู้ดูแล')
+  ];
+  v.innerHTML = heroHtml('ผู้ดูแลระบบ · ยินดีต้อนรับกลับมา') +
+    `<div class="section-title" style="margin-top:20px">เมนูหลัก</div><div class="cardgrid">${cards.join('')}</div>`;
   v.querySelectorAll('[data-open]').forEach(t => t.addEventListener('click', () => go(t.getAttribute('data-open'))));
+}
+async function renderHomeAgent(v) {
+  v.innerHTML = heroHtml('ยินดีต้อนรับสู่ระบบอบรมและทดสอบออนไลน์') + `<div class="muted" style="margin-top:16px">กำลังโหลด...</div>`;
+  let d;
+  try { d = await rpc('app_my_home'); } catch (e) { v.innerHTML = heroHtml('') + `<div class="card">โหลดข้อมูลไม่สำเร็จ</div>`; return; }
+  const fmtd = s => { const x = new Date(s); return isNaN(x) ? '' : x.toLocaleDateString('th-TH'); };
+  const tile = (k, val, sub, c) => `<div class="tile" style="border-left:5px solid ${c}"><div class="k">${k}</div><div class="t" style="font-size:26px">${val}</div><div class="m">${sub}</div></div>`;
+  const stpill = (ok, okT, noT) => `<span class="st ${ok ? 'ok' : ''}" style="${ok ? '' : 'background:#FFF3E6;color:#F68920'}">${ok ? okT : noT}</span>`;
+
+  const assigns = d.assignments || [], scores = d.scores || [], certs = d.certs || [];
+  const assignHtml = assigns.length ? assigns.map(a => `<div class="tile lcard" data-go="${a.type}" data-id="${a.item_id}" style="cursor:pointer">
+      <div class="thumb" style="background:${a.type === 'lesson' ? '#198E8F' : '#F68920'}1a;color:${a.type === 'lesson' ? '#198E8F' : '#F68920'}">${a.type === 'lesson' ? '📘' : '📝'}</div>
+      <div style="flex:1;min-width:0"><div class="t">${esc(a.title || '(ไม่พบรายการ)')}</div>
+        <div class="m">${a.type === 'lesson' ? 'บทเรียน' : 'แบบทดสอบ'}${a.due ? ' · กำหนดส่ง ' + fmtd(a.due) : ''}</div></div>
+      ${stpill(a.done, '✓ เสร็จแล้ว', 'ยังไม่เสร็จ')}</div>`).join('')
+    : `<div class="card muted">ยังไม่มีงานที่ได้รับมอบหมาย</div>`;
+
+  const scoreHtml = scores.length ? `<div class="card" style="padding:0;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:#f0faf9;color:var(--teal-700)"><th style="text-align:left;padding:9px 12px">ชุดข้อสอบ</th><th style="padding:9px 12px">คะแนน</th><th style="padding:9px 12px">%</th><th style="padding:9px 12px">ผล</th><th style="padding:9px 12px">วันที่</th></tr></thead>
+      <tbody>${scores.map(s => `<tr style="border-top:1px solid var(--line)">
+        <td style="padding:8px 12px">${esc(s.quiz)}</td>
+        <td style="padding:8px 12px;text-align:center">${s.score}/${s.total}</td>
+        <td style="padding:8px 12px;text-align:center">${s.pct}%</td>
+        <td style="padding:8px 12px;text-align:center">${stpill(s.pass, 'ผ่าน', 'ไม่ผ่าน')}</td>
+        <td style="padding:8px 12px;text-align:center;white-space:nowrap">${fmtd(s.created)}</td></tr>`).join('')}</tbody></table></div>`
+    : `<div class="card muted">ยังไม่มีผลสอบ</div>`;
+
+  const certHtml = certs.length ? `<div class="cardgrid">${certs.map(c => { const p = String(c.title || '').split('|||'); return `<div class="tile lcard">
+      <div class="thumb" style="background:#C19A431a;color:#C19A43">🏆</div>
+      <div style="flex:1;min-width:0"><div class="t">${esc(p[1] || p[0] || 'ใบประกาศ')}</div><div class="m">เลขที่ ${c.no} · ${fmtd(c.date)}</div></div>
+      <button class="btn btn-teal cView" data-no="${c.no}" data-t1="${esc(p[0] || '')}" data-t2="${esc(p[1] || '')}" data-date="${c.date}" style="padding:7px 14px">เปิด/พิมพ์</button></div>`; }).join('')}</div>`
+    : `<div class="card muted">ยังไม่มีใบประกาศ</div>`;
+
+  v.innerHTML = heroHtml('ยินดีต้อนรับสู่ระบบอบรมและทดสอบออนไลน์') + `
+    <div class="cardgrid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr));margin-top:18px">
+      ${tile('บทเรียนที่เรียนจบ', `${d.lessons_done}/${d.lessons_total}`, 'ความคืบหน้า', '#198E8F')}
+      ${tile('ข้อสอบที่สอบผ่าน', `${d.quizzes_passed}/${d.quizzes_total}`, 'ผ่านเกณฑ์', '#F68920')}
+      ${tile('ใบประกาศที่ได้รับ', certs.length, 'ใบ', '#C19A43')}
+    </div>
+    <div class="section-title" style="margin-top:20px">📋 งานที่ได้รับมอบหมาย</div><div class="cardgrid">${assignHtml}</div>
+    <div class="section-title" style="margin-top:20px">📝 คะแนนที่ทำได้</div>${scoreHtml}
+    <div class="section-title" style="margin-top:20px">🏆 ใบประกาศที่ได้รับ</div>${certHtml}`;
+
+  v.querySelectorAll('[data-go]').forEach(el => el.addEventListener('click', () => go(el.getAttribute('data-go'), el.getAttribute('data-id'))));
+  v.querySelectorAll('.cView').forEach(b => b.addEventListener('click', () => viewMyCert({
+    no: b.getAttribute('data-no'), name: d.name, title1: b.getAttribute('data-t1'), title2: b.getAttribute('data-t2'),
+    monthYear: fmtMonthYear(b.getAttribute('data-date'))
+  })));
+}
+function viewMyCert(c) {
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML = `<div style="background:#fff;border-radius:12px;padding:16px;max-width:960px;width:100%;max-height:92vh;overflow:auto">
+    ${certSvg(c)}
+    <div style="text-align:center;margin-top:12px;display:flex;gap:10px;justify-content:center">
+      <button class="btn btn-teal" id="cvPrint">🖨 พิมพ์ / บันทึกเป็น PDF</button>
+      <button class="btn btn-ghost" id="cvClose">ปิด</button></div></div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  ov.querySelector('#cvClose').addEventListener('click', () => ov.remove());
+  ov.querySelector('#cvPrint').addEventListener('click', () => {
+    const w = window.open('', '_blank');
+    w.document.write(`<html><head><title>Certificate ${esc(String(c.no))}</title><style>@page{size:landscape}body{margin:0}svg{width:100%;height:auto}</style></head><body>${certSvg(c)}</body></html>`);
+    w.document.close(); setTimeout(() => w.print(), 300);
+  });
 }
 
 // ---------- รายการบทเรียน / ข้อสอบ ----------
