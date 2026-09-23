@@ -139,11 +139,16 @@ async function renderHomeAgent(v) {
   const stpill = (ok, okT, noT) => `<span class="st ${ok ? 'ok' : ''}" style="${ok ? '' : 'background:#FFF3E6;color:#F68920'}">${ok ? okT : noT}</span>`;
 
   const assigns = d.assignments || [], scores = d.scores || [], certs = d.certs || [];
-  const assignHtml = assigns.length ? assigns.map(a => `<div class="tile lcard" data-go="${a.type}" data-id="${a.item_id}" style="cursor:pointer">
+  const assignHtml = assigns.length ? assigns.map(a => {
+      const meta = a.type === 'lesson' ? 'บทเรียน'
+        : `แบบทดสอบ · ทำไปแล้ว ${a.attempts || 0} ครั้ง${a.best != null ? ' · ดีสุด ' + a.best + '%' : ''}`;
+      return `<div class="tile lcard" data-go="${a.type}" data-id="${a.item_id}" style="cursor:pointer">
       <div class="thumb" style="background:${a.type === 'lesson' ? '#198E8F' : '#F68920'}1a;color:${a.type === 'lesson' ? '#198E8F' : '#F68920'}">${a.type === 'lesson' ? '📘' : '📝'}</div>
       <div style="flex:1;min-width:0"><div class="t">${esc(a.title || '(ไม่พบรายการ)')}</div>
-        <div class="m">${a.type === 'lesson' ? 'บทเรียน' : 'แบบทดสอบ'}${a.due ? ' · กำหนดส่ง ' + fmtd(a.due) : ''}</div></div>
-      ${stpill(a.done, '✓ เสร็จแล้ว', 'ยังไม่เสร็จ')}</div>`).join('')
+        <div class="m">${meta}</div>
+        ${a.due ? `<div class="m" style="color:var(--muted)">กำหนดส่ง ${fmtd(a.due)}</div>` : ''}</div>
+      ${stpill(a.done, '✓ เสร็จแล้ว', 'ยังไม่เสร็จ')}</div>`;
+    }).join('')
     : `<div class="card muted">ยังไม่มีงานที่ได้รับมอบหมาย</div>`;
 
   const scoreHtml = scores.length ? `<div class="card" style="padding:0;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
