@@ -75,6 +75,13 @@
     // มอบหมายงาน
     'ประเภท': 'Type', 'รายการ': 'Item', '— เลือก —': '— Select —', 'กำหนดส่ง': 'Due date',
     'มอบหมายให้ผู้ที่เลือก': 'Assign to selected', 'งานที่มอบหมายล่าสุด': 'Recent assignments',
+    'เลือกบทเรียน / แบบทดสอบ': 'Select lessons / quizzes', '(เลือกได้หลายรายการ)': '(select multiple)',
+    'เลือกทั้งหมด': 'Select all', 'ล้าง': 'Clear', 'ค้นหา...': 'Search...',
+    'บทเรียน (วิดีโอ+เนื้อหา)': 'Lessons (video + content)', 'กำหนดส่ง (ไม่บังคับ)': 'Due date (optional)',
+    'มอบหมายให้': 'Assign to', '📅 สร้างวันนี้': '📅 Created today', '🆕 คนใหม่ 7 วัน': '🆕 New in 7 days',
+    'ทั้งทีม Makro': 'All Makro', 'ทั้งทีม Lotus': 'All Lotus', 'ทีม Center': 'Center team',
+    'วันนี้': 'today', 'เมื่อวาน': 'yesterday',
+    'กรุณาเลือกบทเรียน/แบบทดสอบอย่างน้อย 1 รายการ': 'Please select at least 1 lesson/quiz',
     'กรุณาเลือกรายการ': 'Please select an item', 'กรุณาเลือกผู้รับมอบหมายอย่างน้อย 1 คน': 'Select at least 1 recipient',
     'มอบหมายไม่สำเร็จ': 'Assignment failed', 'ยังไม่มีการมอบหมาย': 'No assignments yet',
     // ความคืบหน้า
@@ -122,6 +129,10 @@
     [/^บล็อก (\d+)$/, 'Block $1'],
     [/^· (\d+) รายการ$/, '· $1 shown'],
     [/^หน้า (\d+) \/ (\d+)$/, 'Page $1 / $2'],
+    [/^(\d+) วันก่อน$/, '$1 days ago'],
+    [/^สร้าง (\d{4}-\d{2}-\d{2})$/, 'Created $1'],
+    [/^เลือกแล้ว: (\d+) รายการ · (\d+) คน$/, 'Selected: $1 items · $2 people'],
+    [/^มอบหมายเรียบร้อย (\d+) รายการ × (\d+) คน ✓$/, 'Assigned $1 items × $2 people ✓'],
     [/^แก้เนื้อหา: (.+)$/, 'Edit content: $1'],
     // prefix (คงส่วนเนื้อหาไทยไว้ด้านหลัง)
     [/^✓ ถูกต้อง/, '✓ Correct'],

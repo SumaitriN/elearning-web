@@ -739,45 +739,86 @@ function runTyping(v, set) {
 async function renderAssign(v) {
   if (ME.role !== 'admin') { v.innerHTML = `<div class="card">เฉพาะผู้ดูแลระบบ</div>`; return; }
   v.innerHTML = `<h1>มอบหมายงาน</h1><div class="muted">กำลังโหลด...</div>`;
-  const st = { team: CATALOG.active_team || (CATALOG.teams[0] || {}).id, type: 'lesson', item: '', cat: null, users: [], picked: {} };
-  async function loadTeam() { st.cat = await rpc('app_catalog', { p_team: st.team }); st.users = await rpc('app_admin_list_users', { p_team: st.team }); st.item = ''; st.picked = {}; }
-  await loadTeam();
+  const teams = CATALOG.teams || [];
+  const st = { items: [], users: [], selItems: new Set(), selUsers: new Set(), isearch: '', due: '' };
+  st.users = await rpc('app_admin_list_users', {});
+  for (const t of teams) {
+    try {
+      const cat = await rpc('app_catalog', { p_team: t.id });
+      (cat.lessons || []).forEach(l => st.items.push({ id: l.id, type: 'lesson', title: l.title, team: t.name }));
+      (cat.quizzes || []).forEach(q => st.items.push({ id: q.id, type: 'quiz', title: q.title, team: t.name }));
+    } catch (_) {}
+  }
+  const key = it => it.type + ':' + it.id;
+  const dLabel = s => { const d = new Date(s); if (isNaN(d)) return ''; const n = Math.floor((Date.now() - d) / 86400000); return n <= 7 ? (n <= 0 ? 'วันนี้' : n === 1 ? 'เมื่อวาน' : n + ' วันก่อน') : 'สร้าง ' + d.toISOString().slice(0, 10); };
+  const tkey = n => /Makro/i.test(n) ? 'Makro' : /Lotus/i.test(n) ? 'Lotus' : 'Center';
+
   function draw() {
-    const items = st.type === 'lesson' ? st.cat.lessons : st.cat.quizzes;
+    const lessons = st.items.filter(i => i.type === 'lesson' && (!st.isearch || i.title.toLowerCase().includes(st.isearch)));
+    const quizzes = st.items.filter(i => i.type === 'quiz' && (!st.isearch || i.title.toLowerCase().includes(st.isearch)));
+    const row = it => `<label style="display:block;padding:4px 2px;cursor:pointer"><input type="checkbox" class="ichk" data-k="${key(it)}" ${st.selItems.has(key(it)) ? 'checked' : ''}> ${it.type === 'lesson' ? '📘' : '📝'} ${esc(it.title)} <span class="muted" style="font-size:12px">(${esc(it.team)})</span></label>`;
     v.innerHTML = `<h1>มอบหมายงาน</h1>
-      <div class="card" style="max-width:640px">
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
-          <div><label class="muted">ทีม</label><br><select id="aTeam" style="${SS}">${teamOpts(st.team)}</select></div>
-          <div><label class="muted">ประเภท</label><br><select id="aType" style="${SS}"><option value="lesson" ${st.type==='lesson'?'selected':''}>บทเรียน</option><option value="quiz" ${st.type==='quiz'?'selected':''}>แบบทดสอบ</option></select></div>
-          <div style="flex:1;min-width:200px"><label class="muted">รายการ</label><br><select id="aItem" style="${SS};width:100%"><option value="">— เลือก —</option>${items.map(it => `<option value="${it.id}" ${st.item===it.id?'selected':''}>${esc(it.title)}</option>`).join('')}</select></div>
-          <div><label class="muted">กำหนดส่ง</label><br><input id="aDue" type="date" style="${SS}"></div>
+      <div class="card">
+        <label style="font-weight:600;display:block;margin-bottom:6px">เลือกบทเรียน / แบบทดสอบ <span class="muted" style="font-weight:400">(เลือกได้หลายรายการ)</span></label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <button class="btn btn-ghost" id="iAll" style="padding:6px 12px">เลือกทั้งหมด</button>
+          <button class="btn btn-ghost" id="iClear" style="padding:6px 12px">ล้าง</button>
+          <input id="iSearch" placeholder="ค้นหา..." style="${SS};flex:1;min-width:150px" value="${esc(st.isearch)}">
         </div>
-        <div style="margin-bottom:8px"><label style="font-weight:600"><input type="checkbox" id="aAll"> เลือกทั้งทีม (${st.users.length} คน)</label></div>
-        <div style="max-height:230px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px 12px">
-          ${st.users.map(u => `<label style="display:block;padding:3px 0"><input type="checkbox" class="uchk" value="${u.id}" ${st.picked[u.id]?'checked':''}> ${esc(u.name || u.email)} <span class="muted" style="font-size:12px">${esc(u.email)}</span></label>`).join('')}
+        <div style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:10px 14px">
+          <div class="muted" style="font-weight:600;margin-bottom:4px">บทเรียน (วิดีโอ+เนื้อหา)</div>
+          ${lessons.length ? lessons.map(row).join('') : '<div class="muted" style="padding:4px 0">—</div>'}
+          <div class="muted" style="font-weight:600;margin:12px 0 4px">แบบทดสอบ</div>
+          ${quizzes.length ? quizzes.map(row).join('') : '<div class="muted" style="padding:4px 0">—</div>'}
         </div>
+        <div style="margin:16px 0"><label class="muted" style="font-weight:600">กำหนดส่ง (ไม่บังคับ)</label><br><input id="aDue" type="date" style="${SS};margin-top:4px" value="${esc(st.due)}"></div>
+        <label style="font-weight:600;display:block;margin-bottom:6px">มอบหมายให้</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <button class="btn btn-ghost qf" data-f="today" style="padding:6px 12px">📅 สร้างวันนี้</button>
+          <button class="btn btn-ghost qf" data-f="new7" style="padding:6px 12px">🆕 คนใหม่ 7 วัน</button>
+          <button class="btn btn-ghost qf" data-f="Makro" style="padding:6px 12px">ทั้งทีม Makro</button>
+          <button class="btn btn-ghost qf" data-f="Lotus" style="padding:6px 12px">ทั้งทีม Lotus</button>
+          <button class="btn btn-ghost qf" data-f="Center" style="padding:6px 12px">ทีม Center</button>
+          <button class="btn btn-ghost qf" data-f="all" style="padding:6px 12px">เลือกทั้งหมด</button>
+          <button class="btn btn-ghost qf" data-f="clear" style="padding:6px 12px">ล้าง</button>
+        </div>
+        <div style="max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px 12px">
+          ${st.users.map(u => `<label style="display:block;padding:3px 0;cursor:pointer"><input type="checkbox" class="uchk" value="${u.id}" ${st.selUsers.has(u.id) ? 'checked' : ''}> ${esc(u.name || u.email)} <span class="muted" style="font-size:12px">· ${esc(u.email)} · ${esc(u.team || '')} · ${dLabel(u.created)}</span></label>`).join('')}
+        </div>
+        <div class="muted" id="aCount" style="margin-top:8px">เลือกแล้ว: ${st.selItems.size} รายการ · ${st.selUsers.size} คน</div>
         <div class="login-err" id="aErr" style="margin:10px 0"></div>
-        <button class="btn btn-primary" id="aBtn">มอบหมายให้ผู้ที่เลือก</button>
+        <button class="btn btn-primary" id="aBtn" style="width:auto;padding:11px 28px">มอบหมายงาน</button>
       </div>
       <div class="card"><h2>งานที่มอบหมายล่าสุด</h2><div id="aList" class="muted">กำลังโหลด...</div></div>`;
-    $('#aTeam').addEventListener('change', async e => { st.team = e.target.value; await loadTeam(); draw(); });
-    $('#aType').addEventListener('change', e => { st.type = e.target.value; st.item = ''; draw(); });
-    $('#aItem').addEventListener('change', e => { st.item = e.target.value; });
-    $('#aAll').addEventListener('change', e => { v.querySelectorAll('.uchk').forEach(c => { c.checked = e.target.checked; st.picked[c.value] = e.target.checked; }); });
-    v.querySelectorAll('.uchk').forEach(c => c.addEventListener('change', e => { st.picked[e.target.value] = e.target.checked; }));
+    v.querySelectorAll('.ichk').forEach(c => c.addEventListener('change', e => { const k = e.target.getAttribute('data-k'); if (e.target.checked) st.selItems.add(k); else st.selItems.delete(k); redrawCount(); }));
+    $('#iAll').addEventListener('click', () => { [...lessons, ...quizzes].forEach(it => st.selItems.add(key(it))); draw(); });
+    $('#iClear').addEventListener('click', () => { st.selItems.clear(); draw(); });
+    $('#iSearch').addEventListener('input', e => { st.isearch = e.target.value.trim().toLowerCase(); draw(); const s = $('#iSearch'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); });
+    v.querySelectorAll('.uchk').forEach(c => c.addEventListener('change', e => { if (e.target.checked) st.selUsers.add(e.target.value); else st.selUsers.delete(e.target.value); redrawCount(); }));
+    v.querySelectorAll('.qf').forEach(b => b.addEventListener('click', () => {
+      const f = b.getAttribute('data-f');
+      if (f === 'clear') st.selUsers.clear();
+      else if (f === 'all') st.users.forEach(u => st.selUsers.add(u.id));
+      else if (f === 'today') st.users.forEach(u => { const d = new Date(u.created); if (!isNaN(d) && Math.floor((Date.now() - d) / 86400000) <= 0) st.selUsers.add(u.id); });
+      else if (f === 'new7') st.users.forEach(u => { const d = new Date(u.created); if (!isNaN(d) && Math.floor((Date.now() - d) / 86400000) <= 7) st.selUsers.add(u.id); });
+      else st.users.forEach(u => { if (tkey(u.team || '') === f) st.selUsers.add(u.id); });
+      draw();
+    }));
+    $('#aDue').addEventListener('change', e => { st.due = e.target.value; });
     $('#aBtn').addEventListener('click', async () => {
-      const ids = [...v.querySelectorAll('.uchk:checked')].map(c => c.value);
       const err = $('#aErr'); err.style.color = 'var(--danger)';
-      if (!st.item) { err.textContent = 'กรุณาเลือกรายการ'; return; }
+      if (!st.selItems.size) { err.textContent = 'กรุณาเลือกบทเรียน/แบบทดสอบอย่างน้อย 1 รายการ'; return; }
+      const ids = [...st.selUsers];
       if (!ids.length) { err.textContent = 'กรุณาเลือกผู้รับมอบหมายอย่างน้อย 1 คน'; return; }
       const btn = $('#aBtn'); btn.disabled = true; err.textContent = '';
       try {
-        const r = await rpc('app_admin_assign', { p_item_type: st.type, p_item_id: st.item, p_user_ids: ids, p_due: $('#aDue').value || null });
-        err.style.color = 'var(--success)'; err.textContent = `มอบหมายเรียบร้อย ${r.assigned} คน ✓`; loadList();
+        for (const k of st.selItems) { const i = k.indexOf(':'); await rpc('app_admin_assign', { p_item_type: k.slice(0, i), p_item_id: k.slice(i + 1), p_user_ids: ids, p_due: st.due || null }); }
+        err.style.color = 'var(--success)'; err.textContent = `มอบหมายเรียบร้อย ${st.selItems.size} รายการ × ${ids.length} คน ✓`; loadList();
       } catch (e) { err.textContent = 'มอบหมายไม่สำเร็จ'; } finally { btn.disabled = false; }
     });
     loadList();
   }
+  function redrawCount() { const el = $('#aCount'); if (el) el.textContent = `เลือกแล้ว: ${st.selItems.size} รายการ · ${st.selUsers.size} คน`; }
   async function loadList() {
     const rows = await rpc('app_admin_assignments');
     const el = $('#aList'); if (!el) return;
