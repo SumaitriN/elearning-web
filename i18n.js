@@ -125,7 +125,7 @@
     // จัดการผู้ใช้
     'สร้างบัญชีใหม่': 'Create new account', 'ชื่อ-สกุล': 'Full name', 'รหัสผ่านตั้งต้น': 'Initial password',
     'สิทธิ์': 'Role', 'ผู้เรียน (agent)': 'Learner (agent)', 'ผู้ดูแล (admin)': 'Admin',
-    'สร้างบัญชี': 'Create account', 'รีเซ็ตรหัส': 'Reset password',
+    'สร้างบัญชี': 'Create account', 'รีเซ็ตรหัส': 'Reset password', 'รายชื่อผู้ใช้': 'Users',
     '➕ สร้างบัญชีเดียว': '➕ Create one account', '📋 สร้างหลายบัญชีทีเดียว (Batch)': '📋 Create many accounts (Batch)',
     'ชื่อที่จะแสดง': 'Display name', 'รหัสผ่านเริ่มต้น': 'Initial password',
     'อีเมล (1 บรรทัดต่อ 1 คน) — ใส่ชื่อได้โดยคั่นด้วยจุลภาค': 'Emails (one per line) — add a name after a comma',
@@ -153,6 +153,8 @@
     [/^มอบหมายเรียบร้อย (\d+) คน ✓$/, 'Assigned to $1 ✓'],
     [/^รายชื่อผู้ใช้ \((\d+)\)$/, 'Users ($1)'],
     [/^· ผู้ดูแล (\d+) คน$/, '· $1 admins'],
+    [/^\((\d+)\) · ผู้ดูแล (\d+) คน$/, '($1) · $2 admins'],
+    [/^\((\d+)\/(\d+)\) · ผู้ดูแล (\d+) คน$/, '($1/$2) · $3 admins'],
     [/^สร้างสำเร็จ (\d+) บัญชี \(ข้าม (\d+)\)$/, 'Created $1 accounts (skipped $2)'],
     [/^บล็อก (\d+)$/, 'Block $1'],
     [/^คำถามที่ (\d+)$/, 'Question $1'],

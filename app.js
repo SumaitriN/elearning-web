@@ -1226,8 +1226,52 @@ async function renderAdmin(v) {
   const inp = 'width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-family:inherit';
   const cell = 'padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px';
   const emailOk = e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
+  const st = { q: '', sort: 'email', dir: 'asc' };
+  function rowHtml(u) {
+    return `<tr style="border-top:1px solid var(--line)">
+      <td style="padding:7px 10px">${esc(u.email)}</td>
+      <td style="padding:7px 10px;white-space:nowrap"><input class="nEdit" data-id="${u.id}" value="${esc(u.name || '')}" style="${cell};width:150px"> <button class="btn btn-ghost nSave" data-id="${u.id}" style="padding:5px 9px" title="บันทึกชื่อ">💾</button></td>
+      <td style="padding:7px 10px;text-align:center">${esc(u.team || '—')}</td>
+      <td style="padding:7px 10px;text-align:center"><select class="rEdit" data-id="${u.id}" data-name="${esc(u.name || '')}" data-team="${u.team_id || ''}" style="${cell}"><option value="agent" ${u.role !== 'admin' ? 'selected' : ''}>Agent</option><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option></select></td>
+      <td style="padding:7px 10px;text-align:center;white-space:nowrap"><input class="pNew" data-id="${u.id}" placeholder="รหัสใหม่" style="${cell};width:110px"> <button class="btn btn-ghost pDo" data-id="${u.id}" style="padding:5px 10px">รีเซ็ต</button></td>
+      <td style="padding:7px 10px;text-align:center"><button class="btn uDel" data-id="${u.id}" data-name="${esc(u.name || u.email)}" style="padding:5px 10px;background:#FBEAEA;color:var(--danger)">ลบ</button></td></tr>`;
+  }
+  function renderRows() {
+    const body = $('#uBody'); if (!body) return;
+    const q = st.q.toLowerCase();
+    let list = users.filter(u => !q || (u.email || '').toLowerCase().includes(q) || (u.name || '').toLowerCase().includes(q));
+    const key = st.sort;
+    list.sort((a, b) => { const c = String(a[key] || '').toLowerCase().localeCompare(String(b[key] || '').toLowerCase()); return st.dir === 'asc' ? c : -c; });
+    body.innerHTML = list.length ? list.map(rowHtml).join('') : `<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">ไม่พบ</td></tr>`;
+    const cnt = $('#uCount'); if (cnt) cnt.textContent = `(${list.length}${q ? '/' + users.length : ''}) · ผู้ดูแล ${users.filter(u => u.role === 'admin').length} คน`;
+    wireRows();
+  }
+  function wireRows() {
+    v.querySelectorAll('.nSave').forEach(b => b.addEventListener('click', async () => {
+      const id = b.getAttribute('data-id'), u = users.find(x => x.id === id);
+      const nm = v.querySelector(`.nEdit[data-id="${id}"]`).value.trim();
+      b.disabled = true; try { await rpc('app_admin_set_user', { p_user_id: id, p_name: nm, p_role: u.role, p_team: u.team_id }); b.textContent = '✓'; setTimeout(() => { b.textContent = '💾'; b.disabled = false; }, 1200); u.name = nm; } catch (e) { alert('บันทึกไม่สำเร็จ'); b.disabled = false; }
+    }));
+    v.querySelectorAll('.rEdit').forEach(s => s.addEventListener('change', async () => {
+      const id = s.getAttribute('data-id'), newRole = s.value;
+      if (!confirm(newRole === 'admin' ? 'ตั้งให้เป็นผู้ดูแล (Admin)?' : 'เปลี่ยนเป็นผู้เรียน (Agent)?')) { renderRows(); return; }
+      try { await rpc('app_admin_set_user', { p_user_id: id, p_name: s.getAttribute('data-name'), p_role: newRole, p_team: s.getAttribute('data-team') || null }); await load(); renderRows(); } catch (e) { alert('เปลี่ยนสิทธิ์ไม่สำเร็จ'); }
+    }));
+    v.querySelectorAll('.pDo').forEach(b => b.addEventListener('click', async () => {
+      const id = b.getAttribute('data-id'), np = v.querySelector(`.pNew[data-id="${id}"]`).value;
+      if (np.length < 6) { alert('รหัสผ่านอย่างน้อย 6 ตัว'); return; }
+      b.disabled = true; try { await rpc('app_admin_reset_password', { p_user_id: id, p_new: np }); alert('รีเซ็ตรหัสผ่านเรียบร้อย'); v.querySelector(`.pNew[data-id="${id}"]`).value = ''; } catch (e) { alert('ไม่สำเร็จ'); } finally { b.disabled = false; }
+    }));
+    v.querySelectorAll('.uDel').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('ลบผู้ใช้ "' + b.getAttribute('data-name') + '" ?')) return;
+      try { await rpc('app_admin_delete_user', { p_user_id: b.getAttribute('data-id') }); await load(); renderRows(); }
+      catch (e) { alert(String(e.message || '').includes('self') ? 'ลบบัญชีตัวเองไม่ได้' : 'ลบไม่สำเร็จ'); }
+    }));
+  }
   function draw() {
     const nAdmin = users.filter(u => u.role === 'admin').length;
+    const arrow = k => st.sort === k ? (st.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅';
+    const sortTh = (k, label, al) => `<th data-usort="${k}" style="text-align:${al};padding:9px 10px;cursor:pointer;user-select:none;white-space:nowrap">${label}<span style="opacity:.7">${arrow(k)}</span></th>`;
     v.innerHTML = `<h1>จัดการผู้ใช้</h1>
       <div class="grid" style="grid-template-columns:1fr 1fr;align-items:start">
         <div class="card"><h2 style="font-size:16px">➕ สร้างบัญชีเดียว</h2>
@@ -1252,17 +1296,14 @@ async function renderAdmin(v) {
           <div class="muted" style="margin-top:8px;font-size:12px">* ทุกบัญชีจะได้รหัสผ่านเริ่มต้นเดียวกัน — แนะนำให้แจ้งผู้ใช้เปลี่ยน/รีเซ็ตภายหลัง · ระบบข้ามอีเมลที่ซ้ำหรือไม่ถูกต้องให้อัตโนมัติ</div></div>
       </div>
       <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-        <h2 style="margin:0;font-size:16px">รายชื่อผู้ใช้ (${users.length}) <span class="muted" style="font-weight:400;font-size:13px">· ผู้ดูแล ${nAdmin} คน</span></h2>
-        <select id="uTeam" style="${SS}"><option value="">ทุกทีม</option>${teamOpts(team)}</select></div>
+        <h2 style="margin:0;font-size:16px">รายชื่อผู้ใช้ <span class="muted" id="uCount" style="font-weight:400;font-size:13px">(${users.length}) · ผู้ดูแล ${nAdmin} คน</span></h2>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <input id="uSearch" placeholder="🔍 ค้นหาชื่อ / อีเมล..." style="${SS};min-width:200px" value="${esc(st.q)}">
+          <select id="uTeam" style="${SS}"><option value="">ทุกทีม</option>${teamOpts(team)}</select>
+        </div></div>
         <div style="overflow:auto;margin-top:10px"><table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead><tr style="background:var(--teal-700,#198E8F);color:#fff"><th style="text-align:left;padding:9px 10px">อีเมล</th><th style="text-align:left;padding:9px 10px">ชื่อ</th><th style="padding:9px 10px">ทีม</th><th style="padding:9px 10px">สิทธิ์</th><th style="padding:9px 10px">รีเซ็ตรหัสผ่าน</th><th style="padding:9px 10px">ลบ</th></tr></thead>
-          <tbody>${users.map(u => `<tr style="border-top:1px solid var(--line)">
-            <td style="padding:7px 10px">${esc(u.email)}</td>
-            <td style="padding:7px 10px;white-space:nowrap"><input class="nEdit" data-id="${u.id}" value="${esc(u.name || '')}" style="${cell};width:150px"> <button class="btn btn-ghost nSave" data-id="${u.id}" style="padding:5px 9px" title="บันทึกชื่อ">💾</button></td>
-            <td style="padding:7px 10px;text-align:center">${esc(u.team || '—')}</td>
-            <td style="padding:7px 10px;text-align:center"><select class="rEdit" data-id="${u.id}" data-name="${esc(u.name || '')}" data-team="${u.team_id || ''}" style="${cell}"><option value="agent" ${u.role !== 'admin' ? 'selected' : ''}>Agent</option><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option></select></td>
-            <td style="padding:7px 10px;text-align:center;white-space:nowrap"><input class="pNew" data-id="${u.id}" placeholder="รหัสใหม่" style="${cell};width:110px"> <button class="btn btn-ghost pDo" data-id="${u.id}" style="padding:5px 10px">รีเซ็ต</button></td>
-            <td style="padding:7px 10px;text-align:center"><button class="btn uDel" data-id="${u.id}" data-name="${esc(u.name || u.email)}" style="padding:5px 10px;background:#FBEAEA;color:var(--danger)">ลบ</button></td></tr>`).join('')}</tbody></table></div></div>`;
+          <thead><tr style="background:var(--teal-700,#198E8F);color:#fff">${sortTh('email', 'อีเมล', 'left')}${sortTh('name', 'ชื่อ', 'left')}${sortTh('team', 'ทีม', 'center')}${sortTh('role', 'สิทธิ์', 'center')}<th style="padding:9px 10px">รีเซ็ตรหัสผ่าน</th><th style="padding:9px 10px">ลบ</th></tr></thead>
+          <tbody id="uBody"></tbody></table></div></div>`;
 
     $('#aBtn').addEventListener('click', async () => {
       const btn = $('#aBtn'); btn.disabled = true; $('#aErr').style.color = 'var(--danger)'; $('#aErr').textContent = '';
@@ -1289,26 +1330,13 @@ async function renderAdmin(v) {
       $('#bList').value = ''; await load(); draw();
     });
     $('#uTeam').addEventListener('change', async e => { team = e.target.value; await load(); draw(); });
-    v.querySelectorAll('.nSave').forEach(b => b.addEventListener('click', async () => {
-      const id = b.getAttribute('data-id'), u = users.find(x => x.id === id);
-      const nm = v.querySelector(`.nEdit[data-id="${id}"]`).value.trim();
-      b.disabled = true; try { await rpc('app_admin_set_user', { p_user_id: id, p_name: nm, p_role: u.role, p_team: u.team_id }); b.textContent = '✓'; setTimeout(() => { b.textContent = '💾'; b.disabled = false; }, 1200); u.name = nm; } catch (e) { alert('บันทึกไม่สำเร็จ'); b.disabled = false; }
+    $('#uSearch').addEventListener('input', e => { st.q = e.target.value.trim(); renderRows(); });
+    v.querySelectorAll('[data-usort]').forEach(h => h.addEventListener('click', () => {
+      const k = h.getAttribute('data-usort');
+      if (st.sort === k) st.dir = st.dir === 'asc' ? 'desc' : 'asc'; else { st.sort = k; st.dir = 'asc'; }
+      draw();
     }));
-    v.querySelectorAll('.rEdit').forEach(s => s.addEventListener('change', async () => {
-      const id = s.getAttribute('data-id'), newRole = s.value;
-      if (!confirm(newRole === 'admin' ? 'ตั้งให้เป็นผู้ดูแล (Admin)?' : 'เปลี่ยนเป็นผู้เรียน (Agent)?')) { draw(); return; }
-      try { await rpc('app_admin_set_user', { p_user_id: id, p_name: s.getAttribute('data-name'), p_role: newRole, p_team: s.getAttribute('data-team') || null }); await load(); draw(); } catch (e) { alert('เปลี่ยนสิทธิ์ไม่สำเร็จ'); }
-    }));
-    v.querySelectorAll('.pDo').forEach(b => b.addEventListener('click', async () => {
-      const id = b.getAttribute('data-id'), np = v.querySelector(`.pNew[data-id="${id}"]`).value;
-      if (np.length < 6) { alert('รหัสผ่านอย่างน้อย 6 ตัว'); return; }
-      b.disabled = true; try { await rpc('app_admin_reset_password', { p_user_id: id, p_new: np }); alert('รีเซ็ตรหัสผ่านเรียบร้อย'); v.querySelector(`.pNew[data-id="${id}"]`).value = ''; } catch (e) { alert('ไม่สำเร็จ'); } finally { b.disabled = false; }
-    }));
-    v.querySelectorAll('.uDel').forEach(b => b.addEventListener('click', async () => {
-      if (!confirm('ลบผู้ใช้ "' + b.getAttribute('data-name') + '" ?')) return;
-      try { await rpc('app_admin_delete_user', { p_user_id: b.getAttribute('data-id') }); await load(); draw(); }
-      catch (e) { alert(String(e.message || '').includes('self') ? 'ลบบัญชีตัวเองไม่ได้' : 'ลบไม่สำเร็จ'); }
-    }));
+    renderRows();
   }
   draw();
 }
