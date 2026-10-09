@@ -322,6 +322,8 @@ async function renderQuiz(v, id) {
       <div style="text-align:right;margin-bottom:8px"><span class="timer ${state.left <= 60 ? 'warn' : ''}" id="timer">${fmt(state.left)}</span></div>
       <div class="q"><div style="font-weight:700;color:var(--teal-700);font-size:13px">ข้อ ${state.cur + 1} / ${questions.length}</div>
         <div style="font-weight:500;margin:6px 0 12px">${esc(q.question)}</div>
+        ${q.image ? `<img src="${esc(q.image)}" style="max-width:100%;border-radius:10px;margin:2px 0 14px;border:1px solid var(--line)" onerror="this.style.display='none'">` : ''}
+        ${q.video && ytId(q.video) ? `<div class="vwrap" style="margin:2px 0 14px"><iframe src="https://www.youtube.com/embed/${ytId(q.video)}" allowfullscreen></iframe></div>` : ''}
         ${(q.choices || []).map((c, j) => `<div class="opt ${state.ans[state.cur] === j ? 'sel' : ''}" data-c="${j}"><span class="dot"></span><span>${esc(c)}</span></div>`).join('')}</div>
       <div class="rowbtns">
         <button class="btn btn-ghost" id="prevBtn" style="visibility:${state.cur === 0 ? 'hidden' : 'visible'}">← ย้อนกลับ</button>
@@ -882,7 +884,8 @@ async function renderAssign(v) {
   function draw() {
     const lessons = st.items.filter(i => i.type === 'lesson' && (!st.isearch || i.title.toLowerCase().includes(st.isearch)));
     const quizzes = st.items.filter(i => i.type === 'quiz' && (!st.isearch || i.title.toLowerCase().includes(st.isearch)));
-    const uq = st.usearch, fusers = st.users.filter(u => !uq || (u.name || '').toLowerCase().includes(uq) || (u.email || '').toLowerCase().includes(uq));
+    const uq = st.usearch, fusers = st.users.filter(u => !uq || (u.name || '').toLowerCase().includes(uq) || (u.email || '').toLowerCase().includes(uq))
+      .sort((a, b) => (new Date(b.created || 0)) - (new Date(a.created || 0)));
     const row = it => `<label class="pick" style="display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:8px;cursor:pointer;${st.selItems.has(key(it)) ? 'background:#edf9f9' : ''}"><input type="checkbox" class="ichk" data-k="${key(it)}" ${st.selItems.has(key(it)) ? 'checked' : ''} style="margin-top:3px"><span>${it.type === 'lesson' ? '📘' : '📝'} ${esc(it.title)} <span class="muted" style="font-size:12px">(${esc(it.team)})</span></span></label>`;
     const urow = u => `<label class="pick" style="display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:8px;cursor:pointer;${st.selUsers.has(u.id) ? 'background:#edf9f9' : ''}"><input type="checkbox" class="uchk" value="${u.id}" ${st.selUsers.has(u.id) ? 'checked' : ''} style="margin-top:3px"><span>${esc(u.name || u.email)}<br><span class="muted" style="font-size:12px">${esc(u.email)} · ${esc(u.team || '')} · ${dLabel(u.created)}</span></span></label>`;
     const box = 'max-height:380px;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:8px';
@@ -1169,14 +1172,16 @@ async function renderQuizEditor(v, quizId, teamKey, onBack) {
   let data = { title: '', minutes: 15, pass: 80, questions: [] };
   if (quizId) { try { data = await rpc('app_admin_quiz_get', { p_quiz: quizId }); } catch (_) {} }
   const st = { title: data.title || '', minutes: data.minutes || 15, pass: data.pass || 80,
-    qs: (data.questions || []).map(q => ({ q: q.q || '', choices: q.choices || [], correct: q.correct || 0 })) };
+    qs: (data.questions || []).map(q => ({ q: q.q || '', choices: q.choices || [], correct: q.correct || 0, image: q.image || '', video: q.video || '' })) };
   const ta = 'width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px;box-sizing:border-box';
   function sync() {
     st.title = $('#qzTitle').value; st.minutes = parseInt($('#qzMin').value) || 15; st.pass = parseInt($('#qzPass').value) || 80;
     st.qs = [...v.querySelectorAll('[data-q]')].map(el => ({
       q: el.querySelector('.qQ').value,
       choices: el.querySelector('.qC').value.split('\n').map(s => s.trim()).filter(Boolean),
-      correct: (parseInt(el.querySelector('.qA').value) || 1) - 1
+      correct: (parseInt(el.querySelector('.qA').value) || 1) - 1,
+      image: el.querySelector('.qImg').value.trim(),
+      video: el.querySelector('.qVid').value.trim()
     }));
   }
   function draw() {
@@ -1200,6 +1205,11 @@ async function renderQuizEditor(v, quizId, teamKey, onBack) {
             </span></div>
           <input class="qQ" style="${ta};margin-bottom:6px" placeholder="คำถาม" value="${esc(q.q)}">
           <textarea class="qC" rows="4" style="${ta};margin-bottom:6px" placeholder="ตัวเลือก (บรรทัดละ 1 ข้อ)">${esc((q.choices || []).join('\n'))}</textarea>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+            <div style="flex:1;min-width:200px"><input class="qImg" style="${ta}" placeholder="🖼️ แนบรูป: วาง URL รูปภาพ (เว้นว่างได้)" value="${esc(q.image || '')}"></div>
+            <div style="flex:1;min-width:200px"><input class="qVid" style="${ta}" placeholder="🎬 แนบวิดีโอ: วางลิงก์ YouTube (เว้นว่างได้)" value="${esc(q.video || '')}"></div>
+          </div>
+          ${q.image ? `<img src="${esc(q.image)}" style="max-height:120px;border-radius:8px;border:1px solid var(--line);margin-bottom:6px" onerror="this.style.display='none'">` : ''}
           <div style="display:flex;gap:8px;align-items:center"><span class="muted">ข้อที่ถูก (ลำดับตัวเลือก 1-N):</span><input class="qA" type="number" min="1" style="${ta};width:120px" value="${(q.correct ?? 0) + 1}"></div>
         </div>`).join('')}</div>
       <div style="display:flex;gap:10px;margin-bottom:20px">
@@ -1207,7 +1217,7 @@ async function renderQuizEditor(v, quizId, teamKey, onBack) {
         <button class="btn btn-primary" id="qzSave" style="margin-left:auto">💾 บันทึกข้อสอบ</button></div>
       <div class="login-err" id="qzMsg"></div>`;
     $('#qzBack').addEventListener('click', onBack);
-    $('#qzAdd').addEventListener('click', () => { sync(); st.qs.push({ q: '', choices: [], correct: 0 }); draw(); });
+    $('#qzAdd').addEventListener('click', () => { sync(); st.qs.push({ q: '', choices: [], correct: 0, image: '', video: '' }); draw(); });
     v.querySelectorAll('.qUp').forEach(b => b.addEventListener('click', () => { sync(); const i = +b.getAttribute('data-i'); [st.qs[i - 1], st.qs[i]] = [st.qs[i], st.qs[i - 1]]; draw(); }));
     v.querySelectorAll('.qDown').forEach(b => b.addEventListener('click', () => { sync(); const i = +b.getAttribute('data-i'); [st.qs[i + 1], st.qs[i]] = [st.qs[i], st.qs[i + 1]]; draw(); }));
     v.querySelectorAll('.qDelQ').forEach(b => b.addEventListener('click', () => { sync(); st.qs.splice(+b.getAttribute('data-i'), 1); draw(); }));
