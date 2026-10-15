@@ -1243,15 +1243,22 @@ async function renderBlockEditor(v, lessonId, title, section, teamKey, onBack) {
   const state = { blocks: (d.blocks || []).map(b => ({ type: b.type, content: b.content || '', url: b.url || '', question: b.question || '', choices: b.choices || [], answer: b.answer, explain: b.explain || '' })) };
   const ta = 'width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px;box-sizing:border-box';
   function sync() {
-    state.blocks = [...v.querySelectorAll('[data-blk]')].map(el => {
-      const type = el.querySelector('.bType').value; const b = { type };
-      if (type === 'text') b.content = el.querySelector('.bContent').value;
-      else if (['video', 'image', 'slides'].includes(type)) b.url = el.querySelector('.bUrl').value;
+    // อ่านค่าแบบปลอดภัย: ถ้าช่องของชนิดใหม่ยังไม่ถูกวาด (ตอนเพิ่งเปลี่ยนชนิดบล็อก)
+    // ให้คงค่าเดิมไว้แทนการพังทั้งฟังก์ชัน (กันบั๊กกดบันทึกแล้วไม่ทำงาน)
+    state.blocks = [...v.querySelectorAll('[data-blk]')].map((el, i) => {
+      const prev = state.blocks[i] || {};
+      const val = (sel) => { const x = el.querySelector(sel); return x ? x.value : null; };
+      const type = val('.bType') || prev.type || 'text';
+      const b = { type };
+      if (type === 'text') b.content = val('.bContent') ?? prev.content ?? '';
+      else if (['video', 'image', 'slides'].includes(type)) b.url = val('.bUrl') ?? prev.url ?? '';
       else if (type === 'check') {
-        b.question = el.querySelector('.bQ').value;
-        b.choices = el.querySelector('.bChoices').value.split('\n').map(s => s.trim()).filter(Boolean);
-        b.answer = (parseInt(el.querySelector('.bAns').value) || 1) - 1;
-        b.explain = el.querySelector('.bExplain').value;
+        b.question = val('.bQ') ?? prev.question ?? '';
+        const ch = val('.bChoices');
+        b.choices = ch != null ? ch.split('\n').map(s => s.trim()).filter(Boolean) : (prev.choices || []);
+        const ans = val('.bAns');
+        b.answer = ans != null ? ((parseInt(ans) || 1) - 1) : (prev.answer ?? 0);
+        b.explain = val('.bExplain') ?? prev.explain ?? '';
       }
       return b;
     });
@@ -1296,9 +1303,18 @@ async function renderBlockEditor(v, lessonId, title, section, teamKey, onBack) {
     v.querySelectorAll('.bDown').forEach(b => b.addEventListener('click', () => { sync(); const i = +b.getAttribute('data-i'); [state.blocks[i + 1], state.blocks[i]] = [state.blocks[i], state.blocks[i + 1]]; draw(); }));
     v.querySelectorAll('.bDelBlk').forEach(b => b.addEventListener('click', () => { sync(); state.blocks.splice(+b.getAttribute('data-i'), 1); draw(); }));
     $('#beSave').addEventListener('click', async () => {
-      sync(); const btn = $('#beSave'); btn.disabled = true; const m = $('#beMsg');
-      try { await rpc('app_admin_save_blocks', { p_lesson_id: lessonId, p_blocks: state.blocks }); m.style.color = 'var(--success)'; m.textContent = 'บันทึกเรียบร้อย ✓'; }
-      catch (e) { m.style.color = 'var(--danger)'; m.textContent = 'บันทึกไม่สำเร็จ'; } finally { btn.disabled = false; }
+      const btn = $('#beSave'); btn.disabled = true; const m = $('#beMsg');
+      m.style.color = 'var(--muted)'; m.textContent = 'กำลังบันทึก...';
+      try {
+        sync();
+        await rpc('app_admin_save_blocks', { p_lesson_id: lessonId, p_blocks: state.blocks });
+        m.style.color = 'var(--success)'; m.textContent = 'บันทึกเรียบร้อย ✓';
+      } catch (e) {
+        const msg = (e && (e.message || e.hint || '')) + '';
+        m.style.color = 'var(--danger)';
+        if (/expired|invalid_or_expired|no_token/i.test(msg)) m.textContent = 'เซสชันหมดอายุ กรุณาออกจากระบบแล้วเข้าสู่ระบบใหม่ (เนื้อหายังอยู่ ลองบันทึกอีกครั้งหลังเข้าสู่ระบบ)';
+        else m.textContent = 'บันทึกไม่สำเร็จ: ' + (msg || 'เกิดข้อผิดพลาด') + ' — ลองอีกครั้ง';
+      } finally { btn.disabled = false; }
     });
   }
   draw();
