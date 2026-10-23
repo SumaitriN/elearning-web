@@ -7,16 +7,19 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 // ---------- กล่องยืนยันแบบ custom (แทน window.confirm) ----------
-function confirmDialog({ title = 'ยืนยัน', message = '', confirmText = 'ยืนยัน', icon = '🗑️', danger = true } = {}) {
+function confirmDialog({ title = 'ยืนยัน', message = '', bodyHtml = '', confirmText = 'ยืนยัน', cancelText = 'ยกเลิก', icon = '🗑️', danger = true, wide = false } = {}) {
   return new Promise((resolve) => {
     const ov = document.createElement('div');
-    ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(20,40,45,.45);display:flex;align-items:center;justify-content:center;padding:20px;animation:cdFade .12s ease';
-    ov.innerHTML = `<div style="background:#fff;border-radius:18px;max-width:420px;width:100%;padding:28px 26px 22px;box-shadow:0 24px 70px rgba(20,40,45,.3);text-align:center">
-      <div style="font-size:42px;line-height:1;margin-bottom:10px">${icon}</div>
-      <h3 style="margin:0 0 8px;font-size:18px;font-weight:700;color:var(--ink)">${esc(title)}</h3>
-      <div style="color:var(--gray-700);font-size:14px;line-height:1.6;margin-bottom:24px;white-space:pre-line">${esc(message)}</div>
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(20,40,45,.45);display:flex;align-items:center;justify-content:center;padding:20px;animation:cdFade .12s ease;overflow:auto';
+    const body = bodyHtml
+      ? `<div style="margin-bottom:22px">${bodyHtml}</div>`
+      : `<div style="font-size:42px;line-height:1;margin-bottom:10px">${icon}</div>
+         <div style="color:var(--gray-700);font-size:14px;line-height:1.6;margin-bottom:24px;white-space:pre-line">${esc(message)}</div>`;
+    ov.innerHTML = `<div style="background:#fff;border-radius:18px;max-width:${wide ? '760px' : '420px'};width:100%;padding:26px;box-shadow:0 24px 70px rgba(20,40,45,.3);text-align:center;max-height:92vh;overflow:auto">
+      <h3 style="margin:0 0 ${bodyHtml ? '14px' : '8px'};font-size:18px;font-weight:700;color:var(--ink)">${esc(title)}</h3>
+      ${body}
       <div style="display:flex;gap:10px;justify-content:center">
-        <button class="btn btn-ghost" data-act="cancel" style="padding:11px 26px;width:auto">ยกเลิก</button>
+        <button class="btn btn-ghost" data-act="cancel" style="padding:11px 26px;width:auto">${esc(cancelText)}</button>
         <button class="btn" data-act="ok" style="padding:11px 26px;width:auto;background:${danger ? 'var(--danger)' : 'var(--teal)'};color:#fff;box-shadow:0 6px 16px ${danger ? 'rgba(214,69,69,.3)' : 'rgba(33,189,190,.28)'}">${esc(confirmText)}</button>
       </div></div>`;
     if (!document.getElementById('cdFadeKf')) {
@@ -1112,10 +1115,21 @@ async function renderCerts(v) {
       <div class="card"><h2>ใบประกาศที่ออกแล้ว</h2><div id="cList" class="muted">กำลังโหลด...</div></div>`;
     $('#cUser').addEventListener('change', (e) => { const u = users.find(x => x.id === e.target.value); $('#cName').value = u ? (u.name || u.email) : ''; });
     $('#cBtn').addEventListener('click', async () => {
-      const btn = $('#cBtn'); btn.disabled = true;
-      const t1 = $('#cT1').value.trim(), t2 = $('#cT2').value.trim();
+      const btn = $('#cBtn');
+      const t1 = $('#cT1').value.trim(), t2 = $('#cT2').value.trim(), nm = $('#cName').value.trim();
+      if (!nm) { $('#cErr').textContent = 'กรุณากรอกชื่อบนใบประกาศ'; return; }
+      // พรีวิวก่อนออกจริง
+      const preview = { no: 'ตัวอย่าง', name: nm, title1: t1, title2: t2, monthYear: fmtMonthYear(new Date().toISOString().slice(0, 10)) };
+      const ok = await confirmDialog({
+        title: 'ตรวจสอบใบประกาศก่อนออก',
+        bodyHtml: `<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff">${certSvg(preview)}</div>
+                   <div class="muted" style="margin-top:10px;font-size:12.5px">* เลขที่จริงจะถูกกำหนดให้อัตโนมัติเมื่อยืนยัน</div>`,
+        confirmText: '✓ ยืนยันออกใบประกาศ', cancelText: 'แก้ไข', danger: false, wide: true
+      });
+      if (!ok) return;
+      btn.disabled = true; $('#cErr').textContent = '';
       try {
-        const r = await rpc('app_admin_issue_cert', { p_user_id: $('#cUser').value, p_title: t1 + '|||' + t2, p_name: $('#cName').value.trim() });
+        const r = await rpc('app_admin_issue_cert', { p_user_id: $('#cUser').value, p_title: t1 + '|||' + t2, p_name: nm });
         showCert({ no: r.no, name: r.name, title1: t1, title2: t2, monthYear: fmtMonthYear(r.date) }); loadList();
       } catch (e) { $('#cErr').textContent = 'ออกใบประกาศไม่สำเร็จ'; } finally { btn.disabled = false; }
     });
