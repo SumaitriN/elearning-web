@@ -21,7 +21,24 @@ a{color:inherit}
   animation:skyfloat 36s ease-in-out infinite alternate}
 @keyframes skyfloat{from{transform:translate(4.5%,2%) scale(1.06)}to{transform:translate(-4.5%,-2%) scale(1.06)}}
 @media(prefers-reduced-motion:reduce){.sky::before{animation:none}}
-.login-panel{position:relative;z-index:2;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px}
+/* left marketing panel */
+.login-hero{flex:0 0 44%;position:relative;z-index:2;display:flex;flex-direction:column;justify-content:center;padding:48px 64px}
+.login-hero-inner{max-width:520px;width:100%}
+.lh-title{font-size:46px;line-height:1.15;font-weight:700;color:var(--teal);margin:0 0 18px}
+.lh-sub{font-size:17px;line-height:1.6;color:var(--gray-700);margin:0;max-width:440px}
+.lh-feats{display:flex;flex-wrap:wrap;gap:14px 28px;margin-top:28px}
+.lh-feat{display:flex;align-items:center;gap:11px}
+.lh-feat .fi{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.7);box-shadow:0 2px 8px rgba(40,90,110,.08);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
+.lh-feat b{font-size:15px;color:var(--ink);display:block;line-height:1.25}
+.lh-feat small{font-size:12px;color:var(--gray-700)}
+.lh-stats{display:flex;align-items:center;margin-top:38px}
+.lh-stat{padding:0 26px;position:relative}
+.lh-stat:first-child{padding-left:0}
+.lh-stat:not(:last-child)::after{content:"";position:absolute;right:0;top:6px;bottom:6px;width:1px;background:rgba(67,67,67,.18)}
+.lh-stat .lh-ic{font-size:19px;margin-bottom:7px}
+.lh-stat .lh-n{font-size:23px;font-weight:700;color:var(--ink);line-height:1}
+.lh-stat .lh-l{font-size:12px;color:var(--muted);margin-top:4px}
+.login-panel{position:relative;z-index:2;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 36px}
 .login-card{background:rgba(255,255,255,.94);border-radius:28px;box-shadow:0 24px 70px rgba(30,41,59,.14);
   padding:48px;width:100%;max-width:468px;text-align:left}
 .login-card .logo{display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:26px}
@@ -49,6 +66,7 @@ a{color:inherit}
   padding:14px;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;transition:border-color .15s,background .15s}
 .otp-btn:hover{border-color:var(--teal);background:var(--teal-50)}
 .login-page-foot{z-index:2;text-align:center;font-size:12px;color:var(--gray-700);margin-top:22px}
+@media(max-width:960px){.login-hero{display:none}.login-panel{flex:1 1 100%}}
 @media(max-width:520px){.login-card{padding:34px 24px}}
 
 /* ---------- Buttons ---------- */
