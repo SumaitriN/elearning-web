@@ -23,7 +23,7 @@ a{color:inherit}
 @media(prefers-reduced-motion:reduce){.sky::before{animation:none}}
 /* left marketing panel */
 .login-hero{flex:0 0 44%;position:relative;z-index:2;display:flex;flex-direction:column;justify-content:center;padding:48px 64px}
-.login-hero-inner{max-width:520px;width:100%}
+.login-hero-inner{max-width:520px;width:100%;margin-top:-6vh}
 .lh-title{font-size:46px;line-height:1.15;font-weight:700;color:var(--teal);margin:0 0 18px}
 .lh-sub{font-size:17px;line-height:1.6;color:var(--gray-700);margin:0;max-width:440px}
 .lh-feats{display:flex;flex-wrap:wrap;gap:14px 28px;margin-top:28px}
@@ -31,7 +31,7 @@ a{color:inherit}
 .lh-feat .fi{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.7);box-shadow:0 2px 8px rgba(40,90,110,.08);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
 .lh-feat b{font-size:15px;color:var(--ink);display:block;line-height:1.25}
 .lh-feat small{font-size:12px;color:var(--gray-700)}
-.lh-stats{display:flex;align-items:center;margin-top:38px}
+.lh-stats{position:absolute;left:64px;bottom:48px;display:flex;align-items:center}
 .lh-stat{padding:0 26px;position:relative}
 .lh-stat:first-child{padding-left:0}
 .lh-stat:not(:last-child)::after{content:"";position:absolute;right:0;top:6px;bottom:6px;width:1px;background:rgba(67,67,67,.18)}
