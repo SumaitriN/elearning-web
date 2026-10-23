@@ -1367,7 +1367,7 @@ async function renderAdmin(v) {
   const inp = 'width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-family:inherit';
   const cell = 'padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px';
   const emailOk = e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
-  const st = { q: '', sort: 'email', dir: 'asc' };
+  const st = { q: '', sort: 'email', dir: 'asc', status: 'all' };
   const ROLES = [['agent', 'ผู้เรียน (agent)'], ['team_leader', 'หัวหน้าทีม (team leader)'], ['customer', 'ลูกค้า (customer)'], ['admin', 'ผู้ดูแล (admin)']];
   const roleLabel = r => ({ agent: 'ผู้เรียน', team_leader: 'หัวหน้าทีม', customer: 'ลูกค้า', admin: 'ผู้ดูแล' }[r] || r);
   const roleOpts = cur => ROLES.map(([val, l]) => `<option value="${val}" ${cur === val ? 'selected' : ''}>${l}</option>`).join('');
@@ -1418,11 +1418,17 @@ async function renderAdmin(v) {
   function renderRows() {
     const body = $('#uBody'); if (!body) return;
     const q = st.q.toLowerCase();
-    let list = users.filter(u => !q || (u.email || '').toLowerCase().includes(q) || (u.name || '').toLowerCase().includes(q));
+    let list = users.filter(u => {
+      if (q && !((u.email || '').toLowerCase().includes(q) || (u.name || '').toLowerCase().includes(q) || (u.hr_name || '').toLowerCase().includes(q))) return false;
+      if (st.status === 'active' && u.active === false) return false;
+      if (st.status === 'off' && u.active !== false) return false;
+      return true;
+    });
     const key = st.sort;
     list.sort((a, b) => { const c = String(a[key] || '').toLowerCase().localeCompare(String(b[key] || '').toLowerCase()); return st.dir === 'asc' ? c : -c; });
     body.innerHTML = list.length ? list.map(rowHtml).join('') : `<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--muted)">ไม่พบ</td></tr>`;
-    const cnt = $('#uCount'); if (cnt) cnt.textContent = `(${list.length}${q ? '/' + users.length : ''}) · ผู้ดูแล ${users.filter(u => u.role === 'admin').length} คน`;
+    const nOn = users.filter(u => u.active !== false).length, nOff = users.length - nOn;
+    const cnt = $('#uCount'); if (cnt) cnt.textContent = `แสดง ${list.length} · ใช้งาน ${nOn} · ปิด ${nOff} · ทั้งหมด ${users.length}`;
     wireRows();
   }
   function wireRows() {
@@ -1487,6 +1493,11 @@ async function renderAdmin(v) {
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-ghost" id="hrLink" style="padding:8px 14px;font-size:13px" title="จับคู่ผู้ใช้กับพนักงาน dgs-core ด้วยอีเมล">🔗 จับคู่ชื่อจาก HR</button>
           <input id="uSearch" placeholder="🔍 ค้นหาชื่อ / อีเมล..." style="${SS};min-width:200px" value="${esc(st.q)}">
+          <select id="uStatus" style="${SS}">
+            <option value="all"${st.status === 'all' ? ' selected' : ''}>ทุกสถานะ</option>
+            <option value="active"${st.status === 'active' ? ' selected' : ''}>✅ ใช้งาน</option>
+            <option value="off"${st.status === 'off' ? ' selected' : ''}>⛔ ปิดใช้งาน</option>
+          </select>
           <select id="uTeam" style="${SS}"><option value="">ทุกทีม</option>${teamOpts(team)}</select>
         </div></div>
         <div class="muted" id="hrMsg" style="margin-top:8px;font-size:12px">ชื่อในระบบดึงจาก dgs-core โดยจับคู่ด้วยอีเมล · กดปุ่มนี้จะจับคู่ใหม่และปิดใช้งานคนที่ออกจากบริษัทแล้วอัตโนมัติ (คนออกแล้วล็อกอินไม่ได้) · เปิดคืนได้เองที่คอลัมน์สถานะ</div>
@@ -1532,6 +1543,7 @@ async function renderAdmin(v) {
     });
     $('#uTeam').addEventListener('change', async e => { team = e.target.value; await load(); draw(); });
     $('#uSearch').addEventListener('input', e => { st.q = e.target.value.trim(); renderRows(); });
+    $('#uStatus').addEventListener('change', e => { st.status = e.target.value; renderRows(); });
     v.querySelectorAll('[data-usort]').forEach(h => h.addEventListener('click', () => {
       const k = h.getAttribute('data-usort');
       if (st.sort === k) st.dir = st.dir === 'asc' ? 'desc' : 'asc'; else { st.sort = k; st.dir = 'asc'; }
