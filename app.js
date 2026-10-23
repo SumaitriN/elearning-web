@@ -953,10 +953,11 @@ async function renderAssign(v) {
   function draw() {
     const lessons = st.items.filter(i => i.type === 'lesson' && (!st.isearch || i.title.toLowerCase().includes(st.isearch)));
     const quizzes = st.items.filter(i => i.type === 'quiz' && (!st.isearch || i.title.toLowerCase().includes(st.isearch)));
-    const uq = st.usearch, fusers = st.users.filter(u => !uq || (u.name || '').toLowerCase().includes(uq) || (u.email || '').toLowerCase().includes(uq))
+    const uName = u => u.hr_name || u.name || u.email;
+    const uq = st.usearch, fusers = st.users.filter(u => !uq || (u.hr_name || '').toLowerCase().includes(uq) || (u.name || '').toLowerCase().includes(uq) || (u.email || '').toLowerCase().includes(uq) || (u.employee_id || '').includes(uq))
       .sort((a, b) => (new Date(b.created || 0)) - (new Date(a.created || 0)));
     const row = it => `<label class="pick" style="display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:8px;cursor:pointer;${st.selItems.has(key(it)) ? 'background:#edf9f9' : ''}"><input type="checkbox" class="ichk" data-k="${key(it)}" ${st.selItems.has(key(it)) ? 'checked' : ''} style="margin-top:3px"><span>${it.type === 'lesson' ? '📘' : '📝'} ${esc(it.title)} <span class="muted" style="font-size:12px">(${esc(it.team)})</span></span></label>`;
-    const urow = u => `<label class="pick" style="display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:8px;cursor:pointer;${st.selUsers.has(u.id) ? 'background:#edf9f9' : ''}"><input type="checkbox" class="uchk" value="${u.id}" ${st.selUsers.has(u.id) ? 'checked' : ''} style="margin-top:3px"><span>${esc(u.name || u.email)}<br><span class="muted" style="font-size:12px">${esc(u.email)} · ${esc(u.team || '')} · ${dLabel(u.created)}</span></span></label>`;
+    const urow = u => `<label class="pick" style="display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:8px;cursor:pointer;${st.selUsers.has(u.id) ? 'background:#edf9f9' : ''}"><input type="checkbox" class="uchk" value="${u.id}" ${st.selUsers.has(u.id) ? 'checked' : ''} style="margin-top:3px"><span style="min-width:0"><span style="font-weight:600">${esc(uName(u))}</span><br><span class="muted" style="font-size:12px">${u.employee_id ? 'HR#' + esc(u.employee_id) + ' · ' : ''}${esc(u.team || '—')} · ${esc(u.email)}</span></span></label>`;
     const box = 'max-height:380px;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:8px';
     const qbtn = 'padding:6px 12px;font-size:13px';
     v.innerHTML = `<h1>มอบหมายงาน</h1>
@@ -1045,7 +1046,7 @@ async function renderAssign(v) {
     const el = $('#aList'); if (!el) return;
     el.innerHTML = rows.length ? `<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead><tr style="background:#f0faf9;color:var(--teal-700)"><th style="text-align:left;padding:8px 10px">ชื่อ</th><th style="text-align:left;padding:8px 10px">ทีม</th><th style="text-align:left;padding:8px 10px">ประเภท</th><th style="text-align:left;padding:8px 10px">รายการ</th><th style="padding:8px 10px">กำหนดส่ง</th></tr></thead>
-      <tbody>${rows.map(r => `<tr style="border-top:1px solid var(--line)"><td style="padding:7px 10px">${esc(r.name || '')}</td><td style="padding:7px 10px">${esc(r.team || '')}</td><td style="padding:7px 10px">${r.item_type === 'lesson' ? 'บทเรียน' : 'แบบทดสอบ'}</td><td style="padding:7px 10px">${esc(r.item || '')}</td><td style="padding:7px 10px;text-align:center">${r.due || '-'}</td></tr>`).join('')}</tbody></table></div>` : `<div class="muted">ยังไม่มีการมอบหมาย</div>`;
+      <tbody>${rows.map(r => `<tr style="border-top:1px solid var(--line)"><td style="padding:7px 10px"><div style="font-weight:600">${esc(r.name || r.email || '')}</div>${r.employee_id ? `<div class="muted" style="font-size:11px">HR#${esc(r.employee_id)}</div>` : ''}</td><td style="padding:7px 10px">${esc(r.team || '')}</td><td style="padding:7px 10px">${r.item_type === 'lesson' ? 'บทเรียน' : 'แบบทดสอบ'}</td><td style="padding:7px 10px">${esc(r.item || '')}</td><td style="padding:7px 10px;text-align:center">${r.due || '-'}</td></tr>`).join('')}</tbody></table></div>` : `<div class="muted">ยังไม่มีการมอบหมาย</div>`;
   }
   draw();
 }
