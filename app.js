@@ -25,6 +25,9 @@ async function rpc(fn, args = {}) {
 
 let ME = null;
 let CATALOG = null;
+const canView = () => ['admin', 'team_leader', 'customer'].includes(ME && ME.role);
+const canManage = () => ['admin', 'team_leader'].includes(ME && ME.role);
+const noAccess = '<div class="card">ไม่มีสิทธิ์เข้าถึงส่วนนี้</div>';
 
 // ---------- บูต ----------
 window.addEventListener('DOMContentLoaded', async () => {
@@ -65,7 +68,16 @@ async function doLogout() {
 async function enterApp() {
   $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
   $('#whoName').textContent = ME.name || ME.email;
-  document.querySelectorAll('.adminNav').forEach(a => a.style.display = (ME.role === 'admin') ? '' : 'none');
+  const NAV = {
+    admin:       ['home','lessons','quizzes','typing','assign','progress','dashboard','cert','managelessons','admin'],
+    team_leader: ['home','lessons','quizzes','typing','assign','progress','dashboard','cert','managelessons'],
+    customer:    ['home','lessons','quizzes','progress','dashboard'],
+    agent:       ['home','lessons','quizzes','typing']
+  };
+  const allowed = NAV[ME.role] || NAV.agent;
+  window.ALLOWED_NAV = allowed;
+  document.querySelectorAll('[data-nav]').forEach(a => a.style.display = allowed.includes(a.getAttribute('data-nav')) ? '' : 'none');
+  document.querySelectorAll('.nav-group.adminNav').forEach(g => g.style.display = (ME.role !== 'agent') ? '' : 'none');
   CATALOG = await rpc('app_catalog');
   go('home');
 }
@@ -108,26 +120,48 @@ function heroHtml(sub) {
     </div>`;
 }
 function renderHome(v) {
-  if (ME.role === 'admin') return renderHomeAdmin(v);
+  if (ME.role === 'admin' || ME.role === 'team_leader') return renderHomeAdmin(v);
+  if (ME.role === 'customer') return renderHomeCustomer(v);
   return renderHomeAgent(v);
 }
-function renderHomeAdmin(v) {
-  const nl = (CATALOG.lessons || []).length, nq = (CATALOG.quizzes || []).length;
-  const card = (nav, ic, color, title, desc, meta) => `<div class="tile lcard homecard" data-open="${nav}">
+function homeCard(nav, ic, color, title, desc, meta) {
+  return `<div class="tile lcard homecard" data-open="${nav}">
     <div class="thumb" style="background:${color}1a;color:${color}">${ic}</div>
     <div style="min-width:0;flex:1"><div class="t" style="font-size:16px">${title}</div>
       <div class="m" style="margin:3px 0 6px">${desc}</div><div class="k" style="color:${color}">${meta}</div></div>
     <div style="align-self:center;color:${color};font-size:20px">→</div></div>`;
-  const cards = [
-    card('lessons', '📚', '#198E8F', 'บทเรียน', 'เรียนรู้ผ่านวิดีโอ สไลด์ และเนื้อหา', `${nl} บทเรียน`),
-    card('quizzes', '📝', '#F68920', 'แบบทดสอบ', 'ประเมินความรู้ของคุณ', `${nq} ชุด`),
-    card('typing', '⌨️', '#8b5cf6', 'พิมพ์ดีด', 'ฝึกความเร็วและความแม่นยำในการพิมพ์', `4 ชุด`),
-    card('dashboard', '📊', '#0ea5e9', 'แดชบอร์ดผลสอบ', 'ดูผลสอบและสถิติทั้งหมด', 'สำหรับผู้ดูแล'),
-    card('assign', '📤', '#16a34a', 'มอบหมายงาน', 'มอบหมายบทเรียน/แบบทดสอบให้ทีม', 'สำหรับผู้ดูแล'),
-    card('admin', '👤', '#d64545', 'จัดการผู้ใช้', 'เพิ่ม แก้ไข รีเซ็ตบัญชีผู้ใช้', 'สำหรับผู้ดูแล')
+}
+function renderHomeAdmin(v) {
+  const nl = (CATALOG.lessons || []).length, nq = (CATALOG.quizzes || []).length;
+  const allowed = window.ALLOWED_NAV || [];
+  const tl = ME.role === 'team_leader';
+  const scope = tl ? 'ทีมของคุณ' : 'สำหรับผู้ดูแล';
+  const all = [
+    ['lessons',       homeCard('lessons', '📚', '#178485', 'บทเรียน', 'เรียนรู้ผ่านวิดีโอ สไลด์ และเนื้อหา', `${nl} บทเรียน`)],
+    ['quizzes',       homeCard('quizzes', '📝', '#21BDBE', 'แบบทดสอบ', 'ประเมินความรู้', `${nq} ชุด`)],
+    ['typing',        homeCard('typing', '⌨️', '#8b5cf6', 'พิมพ์ดีด', 'ฝึกความเร็วและความแม่นยำ', '4 ชุด')],
+    ['progress',      homeCard('progress', '📈', '#0284c7', 'ความคืบหน้า', 'ติดตามการเรียนของทีม', scope)],
+    ['dashboard',     homeCard('dashboard', '📊', '#0ea5e9', 'แดชบอร์ดผลสอบ', 'ดูผลสอบและสถิติ', scope)],
+    ['assign',        homeCard('assign', '📤', '#16a34a', 'มอบหมายงาน', 'มอบหมายบทเรียน/ข้อสอบ', scope)],
+    ['cert',          homeCard('cert', '🎓', '#d97706', 'ใบประกาศ', 'ออก/ดูใบประกาศ', scope)],
+    ['managelessons', homeCard('managelessons', '🗂️', '#7c3aed', 'จัดการบทเรียน', 'เพิ่ม/แก้บทเรียนและข้อสอบ', scope)],
+    ['admin',         homeCard('admin', '👤', '#d64545', 'จัดการผู้ใช้', 'เพิ่ม แก้ไข รีเซ็ตบัญชี', 'สำหรับผู้ดูแล')]
   ];
-  v.innerHTML = heroHtml('ผู้ดูแลระบบ · ยินดีต้อนรับกลับมา') +
+  const cards = all.filter(([nav]) => allowed.includes(nav)).map(([, html]) => html);
+  v.innerHTML = heroHtml(tl ? 'หัวหน้าทีม · ดูแลเฉพาะทีมของคุณ' : 'ผู้ดูแลระบบ · ยินดีต้อนรับกลับมา') +
     `<div class="section-title" style="margin-top:20px">เมนูหลัก</div><div class="cardgrid">${cards.join('')}</div>`;
+  v.querySelectorAll('[data-open]').forEach(t => t.addEventListener('click', () => go(t.getAttribute('data-open'))));
+}
+function renderHomeCustomer(v) {
+  const nl = (CATALOG.lessons || []).length, nq = (CATALOG.quizzes || []).length;
+  const cards = [
+    homeCard('lessons', '📚', '#178485', 'บทเรียน', 'ดูบทเรียนของโปรเจกต์คุณ', `${nl} บทเรียน`),
+    homeCard('quizzes', '📝', '#21BDBE', 'แบบทดสอบ', 'ดูข้อสอบของโปรเจกต์คุณ', `${nq} ชุด`),
+    homeCard('progress', '📈', '#0284c7', 'ความคืบหน้า', 'ติดตามการเรียนของทีม', 'โปรเจกต์ของคุณ'),
+    homeCard('dashboard', '📊', '#0ea5e9', 'แดชบอร์ดผลสอบ', 'ดูผลสอบ', 'โปรเจกต์ของคุณ')
+  ];
+  v.innerHTML = heroHtml('ลูกค้า · ดูภาพรวมการอบรมของโปรเจกต์คุณ') +
+    `<div class="section-title" style="margin-top:20px">เมนู</div><div class="cardgrid">${cards.join('')}</div>`;
   v.querySelectorAll('[data-open]').forEach(t => t.addEventListener('click', () => go(t.getAttribute('data-open'))));
 }
 async function renderHomeAgent(v) {
@@ -407,7 +441,7 @@ function renderAccount(v) {
 // ---------- แดชบอร์ดผลสอบ (แอดมิน) ----------
 // ---------- วิเคราะห์รายข้อ: ใครทำผิดข้อไหน ----------
 async function renderQuestions(v) {
-  if (ME.role !== 'admin') { v.innerHTML = `<div class="card">เฉพาะผู้ดูแลระบบ</div>`; return; }
+  if (!canView()) { v.innerHTML = noAccess; return; }
   v.innerHTML = `<h1>วิเคราะห์รายข้อ</h1><div class="muted">กำลังโหลด...</div>`;
   const keyOf = n => /Makro/i.test(n) ? 'Makro' : /Lotus/i.test(n) ? 'Lotus' : 'Center';
   let stats;
@@ -557,7 +591,7 @@ async function renderQuestions(v) {
 }
 
 async function renderDashboard(v) {
-  if (ME.role !== 'admin') { v.innerHTML = `<div class="card">เฉพาะผู้ดูแลระบบ</div>`; return; }
+  if (!canView()) { v.innerHTML = noAccess; return; }
   v.innerHTML = `<h1>แดชบอร์ดผลสอบ</h1><div class="muted">กำลังโหลด...</div>`;
   let rows;
   try { rows = await rpc('app_admin_results'); } catch (e) { v.innerHTML = `<div class="card">โหลดข้อมูลไม่สำเร็จ</div>`; return; }
@@ -865,7 +899,7 @@ function runTyping(v, set) {
 
 // ---------- มอบหมายงาน ----------
 async function renderAssign(v) {
-  if (ME.role !== 'admin') { v.innerHTML = `<div class="card">เฉพาะผู้ดูแลระบบ</div>`; return; }
+  if (!canManage()) { v.innerHTML = noAccess; return; }
   v.innerHTML = `<h1>มอบหมายงาน</h1><div class="muted">กำลังโหลด...</div>`;
   const teams = CATALOG.teams || [];
   const st = { items: [], users: [], selItems: new Set(), selUsers: new Set(), isearch: '', usearch: '', due: '' };
@@ -983,7 +1017,7 @@ async function renderAssign(v) {
 
 // ---------- ความคืบหน้า (เรียน + สอบ) ----------
 async function renderProgress(v) {
-  if (ME.role !== 'admin') { v.innerHTML = `<div class="card">เฉพาะผู้ดูแลระบบ</div>`; return; }
+  if (!canView()) { v.innerHTML = noAccess; return; }
   v.innerHTML = `<h1>ความคืบหน้า</h1><div class="muted">กำลังโหลด...</div>`;
   let team = '';
   async function draw() {
@@ -1028,7 +1062,7 @@ function certSvg(c) {
     <text x="96" y="1378" font-size="20" fill="#a7a7a7" letter-spacing="1">${esc(String(c.no))}</text></svg>`;
 }
 async function renderCerts(v) {
-  if (ME.role !== 'admin') { v.innerHTML = `<div class="card">เฉพาะผู้ดูแลระบบ</div>`; return; }
+  if (!canManage()) { v.innerHTML = noAccess; return; }
   v.innerHTML = `<h1>ใบประกาศ</h1><div class="muted">กำลังโหลด...</div>`;
   const users = await rpc('app_admin_list_users', {});
   const inp = 'width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-family:inherit';
@@ -1077,7 +1111,7 @@ async function renderCerts(v) {
 
 // ---------- จัดการบทเรียน ----------
 async function renderManageLessons(v) {
-  if (ME.role !== 'admin') { v.innerHTML = `<div class="card">เฉพาะผู้ดูแลระบบ</div>`; return; }
+  if (!canManage()) { v.innerHTML = noAccess; return; }
   let team = CATALOG.active_team;
   const st = { tab: 'lesson', form: null }; // form: null | {mode:'add'} | {mode:'edit', id, title, section}
   const ip = 'width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:14px;box-sizing:border-box';
@@ -1322,7 +1356,7 @@ async function renderBlockEditor(v, lessonId, title, section, teamKey, onBack) {
 
 // ---------- แอดมิน: จัดการผู้ใช้ (เต็ม) ----------
 async function renderAdmin(v) {
-  if (ME.role !== 'admin') { v.innerHTML = `<div class="card">เฉพาะผู้ดูแลระบบ</div>`; return; }
+  if (ME.role !== 'admin') { v.innerHTML = noAccess; return; }
   v.innerHTML = `<h1>จัดการผู้ใช้</h1><div class="muted">กำลังโหลด...</div>`;
   let team = '', users = [];
   async function load() { users = await rpc('app_admin_list_users', team ? { p_team: team } : {}); }
@@ -1331,13 +1365,36 @@ async function renderAdmin(v) {
   const cell = 'padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px';
   const emailOk = e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
   const st = { q: '', sort: 'email', dir: 'asc' };
+  const ROLES = [['agent', 'ผู้เรียน (agent)'], ['team_leader', 'หัวหน้าทีม (team leader)'], ['customer', 'ลูกค้า (customer)'], ['admin', 'ผู้ดูแล (admin)']];
+  const roleLabel = r => ({ agent: 'ผู้เรียน', team_leader: 'หัวหน้าทีม', customer: 'ลูกค้า', admin: 'ผู้ดูแล' }[r] || r);
+  const roleOpts = cur => ROLES.map(([val, l]) => `<option value="${val}" ${cur === val ? 'selected' : ''}>${l}</option>`).join('');
+  const teamChecks = (uid, sel) => (CATALOG.teams || []).map(t =>
+    `<label style="display:inline-flex;align-items:center;gap:3px;margin:2px 10px 2px 0;white-space:nowrap;font-size:12px"><input type="checkbox" class="tChk" data-u="${uid}" value="${t.id}" ${(sel || []).includes(t.id) ? 'checked' : ''}> ${esc(t.name)}</label>`).join('');
+  // ตารางสรุปสิทธิ์ (reference)
+  const yes = '<span style="color:var(--success);font-weight:700">✓</span>', no = '<span style="color:var(--danger)">✗</span>', vw = '<span style="color:var(--teal-700)">ดู</span>';
+  function permsTable() {
+    const th = 'padding:8px 10px;text-align:center;white-space:nowrap';
+    const td = 'padding:7px 10px;text-align:center;border-top:1px solid var(--line)';
+    return `<div class="card"><h2 style="font-size:16px;margin-bottom:4px">สิทธิ์แต่ละระดับ (ไว้ดูตอนตั้งค่า)</h2>
+      <div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">
+        <thead><tr style="background:var(--teal-50);color:var(--ink)">
+          <th style="${th};text-align:left">ระดับ</th><th style="${th}">บทเรียน/ข้อสอบ</th><th style="${th}">ความคืบหน้า/แดชบอร์ด</th>
+          <th style="${th}">มอบหมาย/จัดการเนื้อหา/ใบประกาศ</th><th style="${th}">จัดการผู้ใช้</th><th style="${th}">ขอบเขต</th></tr></thead>
+        <tbody>
+          <tr><td style="${td};text-align:left"><b>ผู้ดูแล</b> (admin)</td><td style="${td}">${yes}</td><td style="${td}">${yes}</td><td style="${td}">${yes}</td><td style="${td}">${yes}</td><td style="${td}">ทุกทีม</td></tr>
+          <tr><td style="${td};text-align:left"><b>หัวหน้าทีม</b> (team leader)</td><td style="${td}">${yes}</td><td style="${td}">${yes}</td><td style="${td}">${yes}</td><td style="${td}">${no}</td><td style="${td}">เฉพาะทีมตน</td></tr>
+          <tr><td style="${td};text-align:left"><b>ผู้เรียน</b> (agent)</td><td style="${td}">เรียน/ทำ</td><td style="${td}">ของตน</td><td style="${td}">${no}</td><td style="${td}">${no}</td><td style="${td}">ทีมตน</td></tr>
+          <tr><td style="${td};text-align:left"><b>ลูกค้า</b> (customer)</td><td style="${td}">${vw}</td><td style="${td}">${vw}</td><td style="${td}">${no}</td><td style="${td}">${no}</td><td style="${td}">เฉพาะทีมตน (ดูอย่างเดียว)</td></tr>
+        </tbody></table></div></div>`;
+  }
   function rowHtml(u) {
     return `<tr style="border-top:1px solid var(--line)">
       <td style="padding:7px 10px">${esc(u.email)}</td>
-      <td style="padding:7px 10px;white-space:nowrap"><input class="nEdit" data-id="${u.id}" value="${esc(u.name || '')}" style="${cell};width:150px"> <button class="btn btn-ghost nSave" data-id="${u.id}" style="padding:5px 9px" title="บันทึกชื่อ">💾</button></td>
-      <td style="padding:7px 10px;text-align:center">${esc(u.team || '—')}</td>
-      <td style="padding:7px 10px;text-align:center"><select class="rEdit" data-id="${u.id}" data-name="${esc(u.name || '')}" data-team="${u.team_id || ''}" style="${cell}"><option value="agent" ${u.role !== 'admin' ? 'selected' : ''}>Agent</option><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option></select></td>
-      <td style="padding:7px 10px;text-align:center;white-space:nowrap"><input class="pNew" data-id="${u.id}" placeholder="รหัสใหม่" style="${cell};width:110px"> <button class="btn btn-ghost pDo" data-id="${u.id}" style="padding:5px 10px">รีเซ็ต</button></td>
+      <td style="padding:7px 10px"><input class="nEdit" data-id="${u.id}" value="${esc(u.name || '')}" style="${cell};width:140px"></td>
+      <td style="padding:7px 10px;text-align:center"><select class="rEdit" data-id="${u.id}" style="${cell}">${roleOpts(u.role)}</select></td>
+      <td style="padding:7px 10px;min-width:180px">${teamChecks(u.id, u.teams || [])}</td>
+      <td style="padding:7px 10px;text-align:center"><button class="btn btn-primary rSave" data-id="${u.id}" style="padding:6px 12px;width:auto;font-size:13px">💾 บันทึก</button></td>
+      <td style="padding:7px 10px;text-align:center;white-space:nowrap"><input class="pNew" data-id="${u.id}" placeholder="รหัสใหม่" style="${cell};width:100px"> <button class="btn btn-ghost pDo" data-id="${u.id}" style="padding:5px 9px">รีเซ็ต</button></td>
       <td style="padding:7px 10px;text-align:center"><button class="btn uDel" data-id="${u.id}" data-name="${esc(u.name || u.email)}" style="padding:5px 10px;background:#FBEAEA;color:var(--danger)">ลบ</button></td></tr>`;
   }
   function renderRows() {
@@ -1346,20 +1403,23 @@ async function renderAdmin(v) {
     let list = users.filter(u => !q || (u.email || '').toLowerCase().includes(q) || (u.name || '').toLowerCase().includes(q));
     const key = st.sort;
     list.sort((a, b) => { const c = String(a[key] || '').toLowerCase().localeCompare(String(b[key] || '').toLowerCase()); return st.dir === 'asc' ? c : -c; });
-    body.innerHTML = list.length ? list.map(rowHtml).join('') : `<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">ไม่พบ</td></tr>`;
+    body.innerHTML = list.length ? list.map(rowHtml).join('') : `<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">ไม่พบ</td></tr>`;
     const cnt = $('#uCount'); if (cnt) cnt.textContent = `(${list.length}${q ? '/' + users.length : ''}) · ผู้ดูแล ${users.filter(u => u.role === 'admin').length} คน`;
     wireRows();
   }
   function wireRows() {
-    v.querySelectorAll('.nSave').forEach(b => b.addEventListener('click', async () => {
-      const id = b.getAttribute('data-id'), u = users.find(x => x.id === id);
+    v.querySelectorAll('.rSave').forEach(b => b.addEventListener('click', async () => {
+      const id = b.getAttribute('data-id');
       const nm = v.querySelector(`.nEdit[data-id="${id}"]`).value.trim();
-      b.disabled = true; try { await rpc('app_admin_set_user', { p_user_id: id, p_name: nm, p_role: u.role, p_team: u.team_id }); b.textContent = '✓'; setTimeout(() => { b.textContent = '💾'; b.disabled = false; }, 1200); u.name = nm; } catch (e) { alert('บันทึกไม่สำเร็จ'); b.disabled = false; }
-    }));
-    v.querySelectorAll('.rEdit').forEach(s => s.addEventListener('change', async () => {
-      const id = s.getAttribute('data-id'), newRole = s.value;
-      if (!confirm(newRole === 'admin' ? 'ตั้งให้เป็นผู้ดูแล (Admin)?' : 'เปลี่ยนเป็นผู้เรียน (Agent)?')) { renderRows(); return; }
-      try { await rpc('app_admin_set_user', { p_user_id: id, p_name: s.getAttribute('data-name'), p_role: newRole, p_team: s.getAttribute('data-team') || null }); await load(); renderRows(); } catch (e) { alert('เปลี่ยนสิทธิ์ไม่สำเร็จ'); }
+      const role = v.querySelector(`.rEdit[data-id="${id}"]`).value;
+      const teams = [...v.querySelectorAll(`.tChk[data-u="${id}"]:checked`)].map(c => c.value);
+      if (role !== 'admin' && !teams.length) { alert('เลือกอย่างน้อย 1 ทีม'); return; }
+      const old = b.textContent; b.disabled = true; b.textContent = '...';
+      try {
+        await rpc('app_admin_set_user', { p_user_id: id, p_name: nm, p_role: role, p_teams: teams });
+        b.textContent = '✓ บันทึกแล้ว'; setTimeout(() => { b.textContent = old; b.disabled = false; }, 1300);
+        const u = users.find(x => x.id === id); if (u) { u.name = nm; u.role = role; u.teams = teams; }
+      } catch (e) { alert('บันทึกไม่สำเร็จ'); b.textContent = old; b.disabled = false; }
     }));
     v.querySelectorAll('.pDo').forEach(b => b.addEventListener('click', async () => {
       const id = b.getAttribute('data-id'), np = v.querySelector(`.pNew[data-id="${id}"]`).value;
@@ -1376,28 +1436,26 @@ async function renderAdmin(v) {
     const nAdmin = users.filter(u => u.role === 'admin').length;
     const arrow = k => st.sort === k ? (st.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅';
     const sortTh = (k, label, al) => `<th data-usort="${k}" style="text-align:${al};padding:9px 10px;cursor:pointer;user-select:none;white-space:nowrap">${label}<span style="opacity:.7">${arrow(k)}</span></th>`;
+    const teamBoxes = (cls) => (CATALOG.teams || []).map(t => `<label style="display:inline-flex;align-items:center;gap:4px;margin:2px 12px 2px 0;white-space:nowrap"><input type="checkbox" class="${cls}" value="${t.id}"> ${esc(t.name)}</label>`).join('');
     v.innerHTML = `<h1>จัดการผู้ใช้</h1>
+      ${permsTable()}
       <div class="grid" style="grid-template-columns:1fr 1fr;align-items:start">
         <div class="card"><h2 style="font-size:16px">➕ สร้างบัญชีเดียว</h2>
           <div class="field"><label>อีเมล</label><input id="aEmail" type="email" placeholder="name@digiserve.work"></div>
           <div class="field"><label>ชื่อ-นามสกุล</label><input id="aName" placeholder="ชื่อที่จะแสดง"></div>
-          <div style="display:flex;gap:10px">
-            <div class="field" style="flex:1"><label>ทีม</label><select id="aTeamSel" style="${inp}">${teamOpts()}</select></div>
-            <div class="field" style="flex:1"><label>สิทธิ์</label><select id="aRole" style="${inp}"><option value="agent">ผู้เรียน (agent)</option><option value="admin">ผู้ดูแล (admin)</option></select></div>
-          </div>
+          <div class="field"><label>สิทธิ์</label><select id="aRole" style="${inp}">${roleOpts('agent')}</select></div>
+          <div class="field"><label>ทีม / โปรเจกต์ (เลือกได้มากกว่า 1)</label><div id="aTeams" style="padding:4px 0">${teamBoxes('aChk')}</div></div>
           <div class="field"><label>รหัสผ่านเริ่มต้น</label><input id="aPass" placeholder="อย่างน้อย 6 ตัว"></div>
           <div class="login-err" id="aErr" style="margin:0 0 10px"></div>
           <button class="btn btn-primary" id="aBtn" style="width:auto;padding:11px 24px">สร้างบัญชี</button></div>
-        <div class="card"><h2 style="font-size:16px">📋 สร้างหลายบัญชีทีเดียว (Batch)</h2>
+        <div class="card"><h2 style="font-size:16px">📋 สร้างหลายบัญชีทีเดียว (Batch) — ผู้เรียน (agent)</h2>
           <label class="muted" style="font-weight:600">อีเมล (1 บรรทัดต่อ 1 คน) — ใส่ชื่อได้โดยคั่นด้วยจุลภาค</label>
-          <textarea id="bList" rows="7" placeholder="somchai@digiserve.work, สมชาย ใจดี&#10;somsri@digiserve.work, สมศรี มีสุข&#10;user3@digiserve.work" style="${inp};margin:6px 0 10px;resize:vertical"></textarea>
-          <div style="display:flex;gap:10px">
-            <div class="field" style="flex:1"><label>ทีม</label><select id="bTeam" style="${inp}">${teamOpts()}</select></div>
-            <div class="field" style="flex:1"><label>รหัสผ่านเริ่มต้น (ใช้ร่วมกันทุกคน)</label><input id="bPass" placeholder="อย่างน้อย 6 ตัว"></div>
-          </div>
+          <textarea id="bList" rows="6" placeholder="somchai@digiserve.work, สมชาย ใจดี&#10;somsri@digiserve.work, สมศรี มีสุข" style="${inp};margin:6px 0 10px;resize:vertical"></textarea>
+          <div class="field"><label>ทีม</label><select id="bTeam" style="${inp}">${teamOpts()}</select></div>
+          <div class="field"><label>รหัสผ่านเริ่มต้น (ใช้ร่วมกันทุกคน)</label><input id="bPass" placeholder="อย่างน้อย 6 ตัว"></div>
           <div class="login-err" id="bErr" style="margin:0 0 10px"></div>
           <button class="btn btn-primary" id="bBtn" style="width:auto;padding:11px 24px">สร้างทั้งหมด</button>
-          <div class="muted" style="margin-top:8px;font-size:12px">* ทุกบัญชีจะได้รหัสผ่านเริ่มต้นเดียวกัน — แนะนำให้แจ้งผู้ใช้เปลี่ยน/รีเซ็ตภายหลัง · ระบบข้ามอีเมลที่ซ้ำหรือไม่ถูกต้องให้อัตโนมัติ</div></div>
+          <div class="muted" style="margin-top:8px;font-size:12px">* Batch สร้างเป็น agent · ทุกบัญชีได้รหัสเริ่มต้นเดียวกัน · ข้ามอีเมลซ้ำ/ผิดอัตโนมัติ</div></div>
       </div>
       <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
         <h2 style="margin:0;font-size:16px">รายชื่อผู้ใช้ <span class="muted" id="uCount" style="font-weight:400;font-size:13px">(${users.length}) · ผู้ดูแล ${nAdmin} คน</span></h2>
@@ -1406,22 +1464,25 @@ async function renderAdmin(v) {
           <select id="uTeam" style="${SS}"><option value="">ทุกทีม</option>${teamOpts(team)}</select>
         </div></div>
         <div style="overflow:auto;margin-top:10px"><table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead><tr style="background:var(--teal-700,#198E8F);color:#fff">${sortTh('email', 'อีเมล', 'left')}${sortTh('name', 'ชื่อ', 'left')}${sortTh('team', 'ทีม', 'center')}${sortTh('role', 'สิทธิ์', 'center')}<th style="padding:9px 10px">รีเซ็ตรหัสผ่าน</th><th style="padding:9px 10px">ลบ</th></tr></thead>
+          <thead><tr style="background:var(--teal-700);color:#fff">${sortTh('email', 'อีเมล', 'left')}${sortTh('name', 'ชื่อ', 'left')}${sortTh('role', 'สิทธิ์', 'center')}<th style="padding:9px 10px">ทีม / โปรเจกต์</th><th style="padding:9px 10px">บันทึก</th><th style="padding:9px 10px">รีเซ็ตรหัสผ่าน</th><th style="padding:9px 10px">ลบ</th></tr></thead>
           <tbody id="uBody"></tbody></table></div></div>`;
 
     $('#aBtn').addEventListener('click', async () => {
       const btn = $('#aBtn'); btn.disabled = true; $('#aErr').style.color = 'var(--danger)'; $('#aErr').textContent = '';
-      const em = $('#aEmail').value.trim(), pw = $('#aPass').value;
+      const em = $('#aEmail').value.trim(), pw = $('#aPass').value, role = $('#aRole').value;
+      const teams = [...v.querySelectorAll('.aChk:checked')].map(c => c.value);
       if (!emailOk(em)) { $('#aErr').textContent = 'อีเมลไม่ถูกต้อง'; btn.disabled = false; return; }
       if (pw.length < 6) { $('#aErr').textContent = 'รหัสผ่านอย่างน้อย 6 ตัว'; btn.disabled = false; return; }
+      if (role !== 'admin' && !teams.length) { $('#aErr').textContent = 'เลือกอย่างน้อย 1 ทีม'; btn.disabled = false; return; }
       try {
-        await rpc('app_admin_create_user', { p_email: em, p_password: pw, p_name: $('#aName').value.trim(), p_role: $('#aRole').value, p_team: $('#aTeamSel').value });
+        await rpc('app_admin_create_user', { p_email: em, p_password: pw, p_name: $('#aName').value.trim(), p_role: role, p_teams: teams });
         $('#aName').value = $('#aEmail').value = $('#aPass').value = ''; await load(); draw();
       } catch (e) { $('#aErr').textContent = String(e.message || '').includes('duplicate') ? 'อีเมลนี้มีอยู่แล้ว' : 'สร้างไม่สำเร็จ'; } finally { btn.disabled = false; }
     });
     $('#bBtn').addEventListener('click', async () => {
       const btn = $('#bBtn'), err = $('#bErr'); err.style.color = 'var(--danger)';
       const pw = $('#bPass').value; if (pw.length < 6) { err.textContent = 'รหัสผ่านอย่างน้อย 6 ตัว'; return; }
+      const bt = $('#bTeam').value; if (!bt) { err.textContent = 'เลือกทีม'; return; }
       const seen = new Set(users.map(u => (u.email || '').toLowerCase()));
       const rows = $('#bList').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
         const i = l.indexOf(','); return i < 0 ? { e: l.trim(), n: '' } : { e: l.slice(0, i).trim(), n: l.slice(i + 1).trim() };
@@ -1429,7 +1490,7 @@ async function renderAdmin(v) {
       const valid = rows.filter(r => emailOk(r.e) && !seen.has(r.e.toLowerCase()));
       if (!valid.length) { err.textContent = 'ไม่มีอีเมลที่ถูกต้อง/ยังไม่ซ้ำ'; return; }
       btn.disabled = true; err.textContent = ''; let ok = 0;
-      for (const r of valid) { try { await rpc('app_admin_create_user', { p_email: r.e, p_password: pw, p_name: r.n, p_role: 'agent', p_team: $('#bTeam').value }); ok++; } catch (_) {} }
+      for (const r of valid) { try { await rpc('app_admin_create_user', { p_email: r.e, p_password: pw, p_name: r.n, p_role: 'agent', p_teams: [bt] }); ok++; } catch (_) {} }
       err.style.color = 'var(--success)'; err.textContent = `สร้างสำเร็จ ${ok} บัญชี (ข้าม ${rows.length - ok})`;
       $('#bList').value = ''; await load(); draw();
     });
