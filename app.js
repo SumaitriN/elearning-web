@@ -1044,23 +1044,56 @@ async function renderAssign(v) {
   async function loadList() {
     const rows = await rpc('app_admin_assignments');
     const el = $('#aList'); if (!el) return;
-    // สรุปรายคน: 1 คน 1 การ์ด รวมงานที่ได้รับ
+    // สรุปรายคน: 1 คน 1 การ์ด (ย่อ/ขยายได้) แยกบทเรียน/ข้อสอบ
     const byPerson = {};
     rows.forEach(r => {
       const k = (r.email || r.name || '').toLowerCase();
-      if (!byPerson[k]) byPerson[k] = { name: r.name || r.email, team: r.team, employee_id: r.employee_id, items: [] };
-      byPerson[k].items.push(r);
+      if (!byPerson[k]) byPerson[k] = { name: r.name || r.email, team: r.team, employee_id: r.employee_id, lessons: [], quizzes: [] };
+      (r.item_type === 'lesson' ? byPerson[k].lessons : byPerson[k].quizzes).push(r);
     });
-    const people = Object.values(byPerson).sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
-    const chip = it => `<span style="font-size:12px;background:${it.item_type === 'lesson' ? '#e6f7f7' : '#fff2e0'};color:${it.item_type === 'lesson' ? 'var(--teal-700)' : '#b5651d'};border-radius:999px;padding:4px 11px;display:inline-block">${it.item_type === 'lesson' ? '📘' : '📝'} ${esc(it.item || '')}${it.due ? ' · ⏰' + it.due : ''}</span>`;
-    el.innerHTML = people.length
-      ? `<div class="muted" style="margin-bottom:10px">มอบหมายแล้ว ${people.length} คน · ${rows.length} งาน</div>` +
-        people.map(p => `<div style="border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-            <div><span style="font-weight:600">${esc(p.name)}</span> <span class="muted" style="font-size:12px">${p.employee_id ? 'HR#' + esc(p.employee_id) + ' · ' : ''}${esc(p.team || '—')}</span></div>
-            <span class="st ok">${p.items.length} งาน</span></div>
-          <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px">${p.items.map(chip).join('')}</div></div>`).join('')
-      : `<div class="muted">ยังไม่มีการมอบหมาย</div>`;
+    const people = Object.values(byPerson);
+    if (!people.length) { el.innerHTML = `<div class="muted">ยังไม่มีการมอบหมาย</div>`; return; }
+    el.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <div class="muted">มอบหมายแล้ว <b style="color:var(--ink)">${people.length}</b> คน · ${rows.length} งาน</div>
+        <div style="display:flex;gap:8px">
+          <input id="aqSearch" placeholder="🔍 ค้นหาชื่อ / รหัส..." style="${SS};min-width:200px">
+          <button class="btn btn-ghost" id="aqAll" style="padding:7px 12px;font-size:13px">ขยาย/ย่อทั้งหมด</button>
+        </div></div>
+      <div id="aPeople"></div>`;
+    const itemLine = it => `<div style="padding:5px 0;border-top:1px dashed #eef1f2;font-size:13px;display:flex;justify-content:space-between;gap:8px">
+        <span>${esc(it.item || '')}</span>${it.due ? `<span class="muted" style="white-space:nowrap">⏰ ${it.due}</span>` : ''}</div>`;
+    const section = (icon, label, arr, color) => `<div style="flex:1;min-width:220px">
+        <div style="font-weight:700;font-size:13px;color:${color};margin-bottom:2px">${icon} ${label} <span style="opacity:.7">(${arr.length})</span></div>
+        ${arr.length ? arr.map(itemLine).join('') : '<div class="muted" style="font-size:12px;padding:5px 0">— ไม่มี —</div>'}</div>`;
+    let allOpen = false;
+    const render = (q = '') => {
+      const list = people.filter(p => !q || (p.name || '').toLowerCase().includes(q) || (p.employee_id || '').includes(q))
+        .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+      const box = $('#aPeople'); if (!box) return;
+      box.innerHTML = list.length ? list.map(p => `
+        <div style="border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden">
+          <div class="aHd" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;cursor:pointer;background:#fafcfc">
+            <div style="min-width:0"><span style="font-weight:600">${esc(p.name)}</span><br>
+              <span class="muted" style="font-size:12px">${p.employee_id ? 'HR#' + esc(p.employee_id) + ' · ' : ''}${esc(p.team || '—')}</span></div>
+            <div style="display:flex;gap:7px;align-items:center;flex-shrink:0">
+              <span class="st" style="background:#e6f7f7;color:var(--teal-700)">📘 ${p.lessons.length} บทเรียน</span>
+              <span class="st" style="background:#fff2e0;color:#b5651d">📝 ${p.quizzes.length} ข้อสอบ</span>
+              <span class="aCh" style="color:var(--muted);font-size:12px;transition:transform .15s;${allOpen ? 'transform:rotate(180deg)' : ''}">▼</span></div></div>
+          <div class="aBody" style="display:${allOpen ? 'block' : 'none'};padding:4px 14px 12px;border-top:1px solid var(--line)">
+            <div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:8px">
+              ${section('📘', 'บทเรียน', p.lessons, 'var(--teal-700)')}
+              ${section('📝', 'ข้อสอบ', p.quizzes, '#b5651d')}</div></div></div>`).join('')
+        : `<div class="muted" style="text-align:center;padding:16px">ไม่พบ</div>`;
+      box.querySelectorAll('.aHd').forEach(h => h.addEventListener('click', () => {
+        const b = h.nextElementSibling, open = b.style.display === 'none';
+        b.style.display = open ? 'block' : 'none';
+        const ch = h.querySelector('.aCh'); if (ch) ch.style.transform = open ? 'rotate(180deg)' : '';
+      }));
+    };
+    render();
+    const s = $('#aqSearch'); if (s) s.addEventListener('input', e => render(e.target.value.trim().toLowerCase()));
+    const ab = $('#aqAll'); if (ab) ab.addEventListener('click', () => { allOpen = !allOpen; render($('#aqSearch').value.trim().toLowerCase()); });
   }
   draw();
 }
