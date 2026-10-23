@@ -1388,8 +1388,12 @@ async function renderAdmin(v) {
         </tbody></table></div></div>`;
   }
   function rowHtml(u) {
+    const hr = u.hr_name
+      ? `<div style="font-weight:600;color:var(--teal-700)">${esc(u.hr_name)}</div><div class="muted" style="font-size:11px">HR#${esc(u.employee_id || '')}</div>`
+      : `<span class="muted" style="font-size:12px">— ยังไม่จับคู่ —</span>`;
     return `<tr style="border-top:1px solid var(--line)">
       <td style="padding:7px 10px">${esc(u.email)}</td>
+      <td style="padding:7px 10px;min-width:150px">${hr}</td>
       <td style="padding:7px 10px"><input class="nEdit" data-id="${u.id}" value="${esc(u.name || '')}" style="${cell};width:140px"></td>
       <td style="padding:7px 10px;text-align:center"><select class="rEdit" data-id="${u.id}" style="${cell}">${roleOpts(u.role)}</select></td>
       <td style="padding:7px 10px;min-width:180px">${teamChecks(u.id, u.teams || [])}</td>
@@ -1403,7 +1407,7 @@ async function renderAdmin(v) {
     let list = users.filter(u => !q || (u.email || '').toLowerCase().includes(q) || (u.name || '').toLowerCase().includes(q));
     const key = st.sort;
     list.sort((a, b) => { const c = String(a[key] || '').toLowerCase().localeCompare(String(b[key] || '').toLowerCase()); return st.dir === 'asc' ? c : -c; });
-    body.innerHTML = list.length ? list.map(rowHtml).join('') : `<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">ไม่พบ</td></tr>`;
+    body.innerHTML = list.length ? list.map(rowHtml).join('') : `<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--muted)">ไม่พบ</td></tr>`;
     const cnt = $('#uCount'); if (cnt) cnt.textContent = `(${list.length}${q ? '/' + users.length : ''}) · ผู้ดูแล ${users.filter(u => u.role === 'admin').length} คน`;
     wireRows();
   }
@@ -1459,12 +1463,14 @@ async function renderAdmin(v) {
       </div>
       <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
         <h2 style="margin:0;font-size:16px">รายชื่อผู้ใช้ <span class="muted" id="uCount" style="font-weight:400;font-size:13px">(${users.length}) · ผู้ดูแล ${nAdmin} คน</span></h2>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-ghost" id="hrLink" style="padding:8px 14px;font-size:13px" title="จับคู่ผู้ใช้กับพนักงาน dgs-core ด้วยอีเมล">🔗 จับคู่ชื่อจาก HR</button>
           <input id="uSearch" placeholder="🔍 ค้นหาชื่อ / อีเมล..." style="${SS};min-width:200px" value="${esc(st.q)}">
           <select id="uTeam" style="${SS}"><option value="">ทุกทีม</option>${teamOpts(team)}</select>
         </div></div>
+        <div class="muted" id="hrMsg" style="margin-top:8px;font-size:12px">ชื่อในระบบดึงจาก dgs-core โดยจับคู่ด้วยอีเมล · คนที่ยังไม่จับคู่จะใช้ชื่อที่กรอกเอง</div>
         <div style="overflow:auto;margin-top:10px"><table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead><tr style="background:var(--teal-700);color:#fff">${sortTh('email', 'อีเมล', 'left')}${sortTh('name', 'ชื่อ', 'left')}${sortTh('role', 'สิทธิ์', 'center')}<th style="padding:9px 10px">ทีม / โปรเจกต์</th><th style="padding:9px 10px">บันทึก</th><th style="padding:9px 10px">รีเซ็ตรหัสผ่าน</th><th style="padding:9px 10px">ลบ</th></tr></thead>
+          <thead><tr style="background:var(--teal-700);color:#fff">${sortTh('email', 'อีเมล', 'left')}<th style="padding:9px 10px;text-align:left">ชื่อจาก HR (dgs-core)</th>${sortTh('name', 'ชื่อสำรอง', 'left')}${sortTh('role', 'สิทธิ์', 'center')}<th style="padding:9px 10px">ทีม / โปรเจกต์</th><th style="padding:9px 10px">บันทึก</th><th style="padding:9px 10px">รีเซ็ตรหัสผ่าน</th><th style="padding:9px 10px">ลบ</th></tr></thead>
           <tbody id="uBody"></tbody></table></div></div>`;
 
     $('#aBtn').addEventListener('click', async () => {
@@ -1493,6 +1499,16 @@ async function renderAdmin(v) {
       for (const r of valid) { try { await rpc('app_admin_create_user', { p_email: r.e, p_password: pw, p_name: r.n, p_role: 'agent', p_teams: [bt] }); ok++; } catch (_) {} }
       err.style.color = 'var(--success)'; err.textContent = `สร้างสำเร็จ ${ok} บัญชี (ข้าม ${rows.length - ok})`;
       $('#bList').value = ''; await load(); draw();
+    });
+    $('#hrLink').addEventListener('click', async () => {
+      const btn = $('#hrLink'), msg = $('#hrMsg'); btn.disabled = true; const old = btn.textContent; btn.textContent = 'กำลังจับคู่...';
+      try {
+        const r = await rpc('app_admin_link_employees', {});
+        msg.style.color = 'var(--success)';
+        msg.textContent = `จับคู่สำเร็จ · เชื่อมเพิ่ม ${r.linked} คน · รวมที่มีชื่อจาก HR ${r.total_linked}/${r.total_users} คน`;
+        await load(); draw(); $('#hrMsg').style.color = 'var(--success)';
+        $('#hrMsg').textContent = `จับคู่สำเร็จ · เชื่อมเพิ่ม ${r.linked} คน · รวม ${r.total_linked}/${r.total_users} คน`;
+      } catch (e) { $('#hrMsg').style.color = 'var(--danger)'; $('#hrMsg').textContent = 'จับคู่ไม่สำเร็จ'; btn.textContent = old; btn.disabled = false; }
     });
     $('#uTeam').addEventListener('change', async e => { team = e.target.value; await load(); draw(); });
     $('#uSearch').addEventListener('input', e => { st.q = e.target.value.trim(); renderRows(); });
