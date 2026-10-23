@@ -1044,9 +1044,23 @@ async function renderAssign(v) {
   async function loadList() {
     const rows = await rpc('app_admin_assignments');
     const el = $('#aList'); if (!el) return;
-    el.innerHTML = rows.length ? `<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="background:#f0faf9;color:var(--teal-700)"><th style="text-align:left;padding:8px 10px">ชื่อ</th><th style="text-align:left;padding:8px 10px">ทีม</th><th style="text-align:left;padding:8px 10px">ประเภท</th><th style="text-align:left;padding:8px 10px">รายการ</th><th style="padding:8px 10px">กำหนดส่ง</th></tr></thead>
-      <tbody>${rows.map(r => `<tr style="border-top:1px solid var(--line)"><td style="padding:7px 10px"><div style="font-weight:600">${esc(r.name || r.email || '')}</div>${r.employee_id ? `<div class="muted" style="font-size:11px">HR#${esc(r.employee_id)}</div>` : ''}</td><td style="padding:7px 10px">${esc(r.team || '')}</td><td style="padding:7px 10px">${r.item_type === 'lesson' ? 'บทเรียน' : 'แบบทดสอบ'}</td><td style="padding:7px 10px">${esc(r.item || '')}</td><td style="padding:7px 10px;text-align:center">${r.due || '-'}</td></tr>`).join('')}</tbody></table></div>` : `<div class="muted">ยังไม่มีการมอบหมาย</div>`;
+    // สรุปรายคน: 1 คน 1 การ์ด รวมงานที่ได้รับ
+    const byPerson = {};
+    rows.forEach(r => {
+      const k = (r.email || r.name || '').toLowerCase();
+      if (!byPerson[k]) byPerson[k] = { name: r.name || r.email, team: r.team, employee_id: r.employee_id, items: [] };
+      byPerson[k].items.push(r);
+    });
+    const people = Object.values(byPerson).sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    const chip = it => `<span style="font-size:12px;background:${it.item_type === 'lesson' ? '#e6f7f7' : '#fff2e0'};color:${it.item_type === 'lesson' ? 'var(--teal-700)' : '#b5651d'};border-radius:999px;padding:4px 11px;display:inline-block">${it.item_type === 'lesson' ? '📘' : '📝'} ${esc(it.item || '')}${it.due ? ' · ⏰' + it.due : ''}</span>`;
+    el.innerHTML = people.length
+      ? `<div class="muted" style="margin-bottom:10px">มอบหมายแล้ว ${people.length} คน · ${rows.length} งาน</div>` +
+        people.map(p => `<div style="border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+            <div><span style="font-weight:600">${esc(p.name)}</span> <span class="muted" style="font-size:12px">${p.employee_id ? 'HR#' + esc(p.employee_id) + ' · ' : ''}${esc(p.team || '—')}</span></div>
+            <span class="st ok">${p.items.length} งาน</span></div>
+          <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px">${p.items.map(chip).join('')}</div></div>`).join('')
+      : `<div class="muted">ยังไม่มีการมอบหมาย</div>`;
   }
   draw();
 }
