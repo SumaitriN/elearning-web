@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>E-Learning Platform</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
 </head>
@@ -13,18 +14,36 @@
 
 <!-- ===== หน้าล็อกอิน ===== -->
 <div id="login" class="login-wrap">
-  <div class="login-card">
-    <div class="logo">
-      <img id="logoLogin" alt="Digiserve" style="height:56px;width:auto">
+  <div class="login-hero">
+    <div class="login-hero-inner">
+      <h1 class="lh-title">เรียนรู้ได้ทุกที่<br>พัฒนาทีมอย่างต่อเนื่อง</h1>
+      <p class="lh-sub">แพลตฟอร์มอบรมและทดสอบออนไลน์ของ Digiserve ช่วยให้ทีมของคุณเก่งขึ้นและส่งมอบบริการที่ดีกว่า</p>
+      <div class="lh-stats">
+        <div class="lh-stat"><div class="lh-ic">📚</div><div class="lh-n">บทเรียน</div><div class="lh-l">วิดีโอ · สไลด์ · ข้อสอบ</div></div>
+        <div class="lh-stat"><div class="lh-ic">🏆</div><div class="lh-n">ใบประกาศ</div><div class="lh-l">เมื่อสอบผ่าน</div></div>
+        <div class="lh-stat"><div class="lh-ic">🎯</div><div class="lh-n">ติดตามผล</div><div class="lh-l">รายบุคคล</div></div>
+        <div class="lh-stat"><div class="lh-ic">🛡️</div><div class="lh-n">ISO</div><div class="lh-l">18295-1</div></div>
+      </div>
     </div>
-    <h1>E-Learning Platform</h1>
-    <p class="sub">ระบบอบรมและทดสอบออนไลน์</p>
-    <form id="loginForm">
-      <div class="field"><label>อีเมล</label><input id="email" type="email" autocomplete="username" required></div>
-      <div class="field"><label>รหัสผ่าน</label><input id="password" type="password" autocomplete="current-password" required></div>
-      <div class="login-err" id="loginErr"></div>
-      <button class="btn btn-primary" id="loginBtn" type="submit">เข้าสู่ระบบ</button>
-    </form>
+  </div>
+  <div class="login-panel">
+    <div class="login-card">
+      <div class="logo">
+        <img id="logoLogin" alt="Digiserve" style="height:40px;width:auto">
+        <div class="logo-txt"><b>DIGISERVE</b><span>E-LEARNING</span></div>
+      </div>
+      <h1>ยินดีต้อนรับกลับ</h1>
+      <p class="sub">เข้าสู่ระบบเพื่อไปต่อในการเรียนรู้ของคุณ</p>
+      <form id="loginForm">
+        <div class="field"><label>อีเมลที่ทำงาน</label>
+          <div class="input-wrap"><span class="ic">✉️</span><input id="email" type="email" autocomplete="username" placeholder="กรอกอีเมลของคุณ" required></div></div>
+        <div class="field"><label>รหัสผ่าน</label>
+          <div class="input-wrap"><span class="ic">🔒</span><input id="password" type="password" autocomplete="current-password" placeholder="กรอกรหัสผ่านของคุณ" required></div></div>
+        <div class="login-err" id="loginErr"></div>
+        <button class="btn btn-primary" id="loginBtn" type="submit">เข้าสู่ระบบ →</button>
+      </form>
+      <div class="login-foot">© 2026 บริษัท ดิจิเซิร์ฟ คอร์ปอเรชั่น จำกัด</div>
+    </div>
   </div>
 </div>
 
@@ -36,16 +55,18 @@
       E-Learning
     </div>
     <nav>
-      <a data-nav="home" class="active">หน้าหลัก</a>
-      <a data-nav="lessons">บทเรียน</a>
-      <a data-nav="quizzes">แบบทดสอบ</a>
-      <a data-nav="typing">พิมพ์ดีด</a>
-      <a data-nav="assign" class="adminNav" style="display:none">มอบหมายงาน</a>
-      <a data-nav="progress" class="adminNav" style="display:none">ความคืบหน้า</a>
-      <a data-nav="dashboard" class="adminNav" style="display:none">แดชบอร์ดผลสอบ</a>
-      <a data-nav="cert" class="adminNav" style="display:none">ใบประกาศ</a>
-      <a data-nav="managelessons" class="adminNav" style="display:none">จัดการบทเรียน</a>
-      <a data-nav="admin" class="adminNav" style="display:none">จัดการผู้ใช้</a>
+      <div class="nav-group">เรียนรู้</div>
+      <a data-nav="home" class="active"><span class="ni">🏠</span>หน้าหลัก</a>
+      <a data-nav="lessons"><span class="ni">📚</span>บทเรียน</a>
+      <a data-nav="quizzes"><span class="ni">📝</span>แบบทดสอบ</a>
+      <a data-nav="typing"><span class="ni">⌨️</span>พิมพ์ดีด</a>
+      <div class="nav-group adminNav" style="display:none">สำหรับผู้ดูแล</div>
+      <a data-nav="assign" class="adminNav" style="display:none"><span class="ni">📤</span>มอบหมายงาน</a>
+      <a data-nav="progress" class="adminNav" style="display:none"><span class="ni">📈</span>ความคืบหน้า</a>
+      <a data-nav="dashboard" class="adminNav" style="display:none"><span class="ni">📊</span>แดชบอร์ดผลสอบ</a>
+      <a data-nav="cert" class="adminNav" style="display:none"><span class="ni">🎓</span>ใบประกาศ</a>
+      <a data-nav="managelessons" class="adminNav" style="display:none"><span class="ni">🗂️</span>จัดการบทเรียน</a>
+      <a data-nav="admin" class="adminNav" style="display:none"><span class="ni">👤</span>จัดการผู้ใช้</a>
     </nav>
   </aside>
   <div class="main">

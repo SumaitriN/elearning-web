@@ -65,7 +65,7 @@ async function doLogout() {
 async function enterApp() {
   $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
   $('#whoName').textContent = ME.name || ME.email;
-  document.querySelectorAll('.adminNav').forEach(a => a.style.display = (ME.role === 'admin') ? 'block' : 'none');
+  document.querySelectorAll('.adminNav').forEach(a => a.style.display = (ME.role === 'admin') ? '' : 'none');
   CATALOG = await rpc('app_catalog');
   go('home');
 }
