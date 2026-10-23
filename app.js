@@ -64,6 +64,23 @@ const noAccess = '<div class="card">ไม่มีสิทธิ์เข้�
 // ---------- บูต ----------
 window.addEventListener('DOMContentLoaded', async () => {
   $('#loginForm').addEventListener('submit', doLogin);
+  // แสดง/ซ่อนรหัสผ่าน
+  const eye = $('#eyeBtn');
+  if (eye) eye.addEventListener('click', () => {
+    const p = $('#password'); const show = p.type === 'password';
+    p.type = show ? 'text' : 'password';
+    eye.textContent = show ? '🙈' : '👁';
+    eye.setAttribute('aria-label', show ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน');
+  });
+  // ลืมรหัสผ่าน / OTP — ยังไม่เปิดใช้ แจ้งให้ติดต่อผู้ดูแล
+  const fg = $('#forgotLink');
+  if (fg) fg.addEventListener('click', () => {
+    $('#loginErr').textContent = 'กรุณาติดต่อผู้ดูแลระบบเพื่อรีเซ็ตรหัสผ่าน';
+  });
+  const otp = $('#otpBtn');
+  if (otp) otp.addEventListener('click', () => {
+    $('#loginErr').textContent = 'ระบบเข้าสู่ระบบด้วยรหัส OTP กำลังพัฒนา เร็ว ๆ นี้';
+  });
   $('#logoutBtn').addEventListener('click', doLogout);
   $('#userMenuBtn').addEventListener('click', (e) => { e.stopPropagation(); $('#userMenu').classList.toggle('hidden'); });
   $('#menuPass').addEventListener('click', () => { $('#userMenu').classList.add('hidden'); go('account'); });
