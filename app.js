@@ -1054,19 +1054,66 @@ async function renderAssign(v) {
 async function renderProgress(v) {
   if (!canView()) { v.innerHTML = noAccess; return; }
   v.innerHTML = `<h1>ความคืบหน้า</h1><div class="muted">กำลังโหลด...</div>`;
-  let team = '';
+  let team = '', q = '', sort = 'name';
+  const pct = (d, t) => t > 0 ? Math.round(d / t * 100) : 0;
+  const initials = (nm, em) => { const s = (nm || em || '?').trim(); const t = s.replace(/^(นางสาว|นาง|นาย|น\.ส\.|Miss\.?|Mr\.?|Mrs\.?)\s*/i, '').trim(); return (t[0] || s[0] || '?').toUpperCase(); };
+  function bar(icon, label, done, total, color) {
+    const p = pct(done, total);
+    const sub = total > 0 ? `${done}/${total} · ${p}%` : 'ยังไม่มี';
+    return `<div style="margin-top:12px">
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px">
+        <span style="color:var(--gray-700)">${icon} ${label}</span>
+        <span style="font-weight:700;color:${color}">${sub}</span></div>
+      <div style="height:9px;border-radius:999px;background:#eef1f2;overflow:hidden">
+        <div style="height:100%;width:${p}%;border-radius:999px;background:${color};transition:width .5s"></div></div></div>`;
+  }
+  function card(r) {
+    const lp = pct(r.lessons_done, r.lessons_total), qp = pct(r.quizzes_passed, r.quizzes_total);
+    const overall = Math.round((lp + qp) / 2);
+    const ring = overall >= 80 ? 'var(--success)' : overall >= 40 ? 'var(--orange)' : '#c4d2d6';
+    return `<div class="card" style="margin:0;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:46px;height:46px;border-radius:50%;flex-shrink:0;background:conic-gradient(${ring} ${overall * 3.6}deg,#eef1f2 0);display:flex;align-items:center;justify-content:center">
+          <div style="width:36px;height:36px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--teal-700)">${esc(initials(r.name, r.email))}</div></div>
+        <div style="min-width:0;flex:1">
+          <div style="font-weight:600;color:var(--ink);overflow-wrap:anywhere">${esc(r.name || r.email)}</div>
+          <div class="muted" style="font-size:11.5px">${r.employee_id ? 'HR#' + esc(r.employee_id) + ' · ' : ''}${esc(r.team || '—')}</div></div>
+        <div style="text-align:center;flex-shrink:0"><div style="font-size:18px;font-weight:800;color:${ring};line-height:1">${overall}%</div><div class="muted" style="font-size:10px">รวม</div></div>
+      </div>
+      ${bar('📚', 'บทเรียน', r.lessons_done, r.lessons_total, 'var(--teal)')}
+      ${bar('📝', 'แบบทดสอบ', r.quizzes_passed, r.quizzes_total, 'var(--orange)')}</div>`;
+  }
   async function draw() {
     const rows = await rpc('app_admin_progress', team ? { p_team: team } : {});
     v.innerHTML = `<h1>ความคืบหน้า (เรียน + สอบ)</h1>
-      <div class="card" style="display:flex;gap:10px;align-items:center"><span class="muted">ทีม:</span>
-        <select id="pTeam" style="${SS}"><option value="">ทุกทีม</option>${teamOpts(team)}</select></div>
-      <div class="card" style="padding:0;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr style="background:#f0faf9;color:var(--teal-700)"><th style="text-align:left;padding:10px 12px">ชื่อ</th><th style="text-align:left;padding:10px 12px">ทีม</th><th style="padding:10px 12px">เรียนจบ</th><th style="padding:10px 12px">สอบผ่าน</th></tr></thead>
-        <tbody>${rows.length ? rows.map(r => `<tr style="border-top:1px solid var(--line)">
-          <td style="padding:8px 12px">${esc(r.name || r.email)}</td><td style="padding:8px 12px">${esc(r.team || '')}</td>
-          <td style="padding:8px 12px;text-align:center">${r.lessons_done}/${r.lessons_total}</td>
-          <td style="padding:8px 12px;text-align:center">${r.quizzes_passed}/${r.quizzes_total}</td></tr>`).join('') : `<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--muted)">ไม่มีข้อมูล</td></tr>`}</tbody></table></div>`;
+      <div id="pSummary" class="grid" style="grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:4px"></div>
+      <div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <input id="pSearch" placeholder="🔍 ค้นหาชื่อ..." style="${SS};min-width:200px;flex:1" value="${esc(q)}">
+        <select id="pTeam" style="${SS}"><option value="">ทุกทีม</option>${teamOpts(team)}</select>
+        <select id="pSort" style="${SS}">
+          <option value="name"${sort === 'name' ? ' selected' : ''}>เรียงตามชื่อ</option>
+          <option value="overall"${sort === 'overall' ? ' selected' : ''}>ความคืบหน้ามาก→น้อย</option>
+          <option value="least"${sort === 'least' ? ' selected' : ''}>ความคืบหน้าน้อย→มาก</option>
+        </select></div>
+      <div id="pGrid" class="cardgrid"></div>`;
+    const ov = (r) => Math.round((pct(r.lessons_done, r.lessons_total) + pct(r.quizzes_passed, r.quizzes_total)) / 2);
+    const render = () => {
+      let list = rows.filter(r => !q || (r.name || '').toLowerCase().includes(q.toLowerCase()) || (r.employee_id || '').includes(q));
+      if (sort === 'name') list.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+      else if (sort === 'overall') list.sort((a, b) => ov(b) - ov(a));
+      else if (sort === 'least') list.sort((a, b) => ov(a) - ov(b));
+      const grid = $('#pGrid'); if (grid) grid.innerHTML = list.length ? list.map(card).join('') : `<div class="muted" style="grid-column:1/-1;text-align:center;padding:20px">ไม่พบ</div>`;
+      // summary
+      const n = rows.length;
+      const avgL = n ? Math.round(rows.reduce((s, r) => s + pct(r.lessons_done, r.lessons_total), 0) / n) : 0;
+      const avgQ = n ? Math.round(rows.reduce((s, r) => s + pct(r.quizzes_passed, r.quizzes_total), 0) / n) : 0;
+      const tile = (ic, big, lbl, col) => `<div class="card" style="margin:0;text-align:center;padding:16px 10px"><div style="font-size:24px">${ic}</div><div style="font-size:26px;font-weight:800;color:${col};line-height:1.1">${big}</div><div class="muted" style="font-size:12px">${lbl}</div></div>`;
+      const sum = $('#pSummary'); if (sum) sum.innerHTML = tile('👥', n, 'ผู้เรียน (คน)', 'var(--ink)') + tile('📚', avgL + '%', 'เรียนจบเฉลี่ย', 'var(--teal-700)') + tile('📝', avgQ + '%', 'สอบผ่านเฉลี่ย', 'var(--orange)');
+    };
+    render();
     $('#pTeam').addEventListener('change', e => { team = e.target.value; draw(); });
+    $('#pSearch').addEventListener('input', e => { q = e.target.value.trim(); render(); });
+    $('#pSort').addEventListener('change', e => { sort = e.target.value; render(); });
   }
   draw();
 }
