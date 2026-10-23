@@ -1404,7 +1404,7 @@ async function renderAdmin(v) {
     const statusCell = off
       ? `<span class="st" style="background:#FBEAEA;color:var(--danger)">ปิดใช้งาน</span><br><button class="btn btn-ghost aTgl" data-id="${u.id}" data-to="1" style="padding:4px 9px;font-size:12px;margin-top:5px">เปิดใช้งาน</button>`
       : `<span class="st ok">ใช้งาน</span><br><button class="btn btn-ghost aTgl" data-id="${u.id}" data-to="0" style="padding:4px 9px;font-size:12px;margin-top:5px">ปิดใช้งาน</button>`;
-    return `<tr style="border-top:1px solid var(--line);${off ? 'opacity:.55;background:#fafafa' : ''}">
+    return `<tr style="border-top:1px solid var(--line);${off ? 'background:#e4e4e4;color:#777' : ''}">
       <td style="padding:7px 10px">${esc(u.email)}</td>
       <td style="padding:7px 10px;min-width:150px">${hr}</td>
       <td style="padding:7px 10px;text-align:center">${statusCell}</td>
@@ -1425,7 +1425,12 @@ async function renderAdmin(v) {
       return true;
     });
     const key = st.sort;
-    list.sort((a, b) => { const c = String(a[key] || '').toLowerCase().localeCompare(String(b[key] || '').toLowerCase()); return st.dir === 'asc' ? c : -c; });
+    list.sort((a, b) => {
+      let c;
+      if (key === 'active') c = (a.active === false ? 0 : 1) - (b.active === false ? 0 : 1);
+      else c = String(a[key] || '').toLowerCase().localeCompare(String(b[key] || '').toLowerCase());
+      return st.dir === 'asc' ? c : -c;
+    });
     body.innerHTML = list.length ? list.map(rowHtml).join('') : `<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--muted)">ไม่พบ</td></tr>`;
     const nOn = users.filter(u => u.active !== false).length, nOff = users.length - nOn;
     const cnt = $('#uCount'); if (cnt) cnt.textContent = `แสดง ${list.length} · ใช้งาน ${nOn} · ปิด ${nOff} · ทั้งหมด ${users.length}`;
@@ -1502,7 +1507,7 @@ async function renderAdmin(v) {
         </div></div>
         <div class="muted" id="hrMsg" style="margin-top:8px;font-size:12px">ชื่อในระบบดึงจาก dgs-core โดยจับคู่ด้วยอีเมล · กดปุ่มนี้จะจับคู่ใหม่และปิดใช้งานคนที่ออกจากบริษัทแล้วอัตโนมัติ (คนออกแล้วล็อกอินไม่ได้) · เปิดคืนได้เองที่คอลัมน์สถานะ</div>
         <div style="overflow:auto;margin-top:10px"><table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead><tr style="background:var(--teal-700);color:#fff">${sortTh('email', 'อีเมล', 'left')}<th style="padding:9px 10px;text-align:left">ชื่อจาก HR (dgs-core)</th><th style="padding:9px 10px">สถานะ</th>${sortTh('name', 'ชื่อสำรอง', 'left')}${sortTh('role', 'สิทธิ์', 'center')}<th style="padding:9px 10px">ทีม / โปรเจกต์</th><th style="padding:9px 10px">บันทึก</th><th style="padding:9px 10px">รีเซ็ตรหัสผ่าน</th><th style="padding:9px 10px">ลบ</th></tr></thead>
+          <thead><tr style="background:var(--teal-700);color:#fff">${sortTh('email', 'อีเมล', 'left')}<th style="padding:9px 10px;text-align:left">ชื่อจาก HR (dgs-core)</th>${sortTh('active', 'สถานะ', 'center')}${sortTh('name', 'ชื่อสำรอง', 'left')}${sortTh('role', 'สิทธิ์', 'center')}<th style="padding:9px 10px">ทีม / โปรเจกต์</th><th style="padding:9px 10px">บันทึก</th><th style="padding:9px 10px">รีเซ็ตรหัสผ่าน</th><th style="padding:9px 10px">ลบ</th></tr></thead>
           <tbody id="uBody"></tbody></table></div></div>`;
 
     $('#aBtn').addEventListener('click', async () => {
