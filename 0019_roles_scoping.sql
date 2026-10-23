@@ -44,12 +44,17 @@ $$;
 -- login: ส่ง role + teams กลับไปด้วย
 create or replace function public.app_login(p_device text, p_email text, p_password text)
 returns json language plpgsql security definer set search_path = app, public, extensions as $$
-declare v_user app.users; v_token uuid;
+declare v_user app.users; v_token uuid; v_ok boolean;
 begin
   select * into v_user from app.users where lower(email) = lower(p_email);
-  if v_user.id is null or v_user.pass_hash <> crypt(p_password, v_user.pass_hash) then
-    raise exception 'invalid_credentials';
+  if v_user.id is null then raise exception 'invalid_credentials'; end if;
+  -- รองรับทั้งรหัสเดิม (salt+sha256) และรหัสใหม่ (bcrypt)
+  if v_user.salt is not null and v_user.salt <> '' then
+    v_ok := (v_user.pass_hash = encode(digest(v_user.salt || '::' || p_password, 'sha256'), 'hex'));
+  else
+    v_ok := (v_user.pass_hash = crypt(p_password, v_user.pass_hash));
   end if;
+  if not v_ok then raise exception 'invalid_credentials'; end if;
   insert into app.sessions (user_id, device_token, expires_at)
     values (v_user.id, p_device, now() + interval '8 hours') returning token into v_token;
   return json_build_object('token', v_token,
