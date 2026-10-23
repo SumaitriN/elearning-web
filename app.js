@@ -1106,8 +1106,14 @@ async function renderCerts(v) {
     const rows = await rpc('app_admin_certs'); const el = $('#cList'); if (!el) return;
     el.innerHTML = rows.length ? `<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead><tr style="background:#f0faf9;color:var(--teal-700)"><th style="padding:8px 10px">เลขที่</th><th style="text-align:left;padding:8px 10px">ชื่อ</th><th style="text-align:left;padding:8px 10px">หลักสูตร</th><th style="padding:8px 10px">วันที่</th><th style="padding:8px 10px"></th></tr></thead>
-      <tbody>${rows.map(r => { const p = String(r.title || '').split('|||'); return `<tr style="border-top:1px solid var(--line)"><td style="padding:7px 10px;text-align:center">${r.no}</td><td style="padding:7px 10px">${esc(r.name)}</td><td style="padding:7px 10px">${esc(p[1] || p[0] || '')}</td><td style="padding:7px 10px;text-align:center">${r.date}</td><td style="padding:7px 10px;text-align:center"><button class="btn btn-ghost cOpen" data-no="${r.no}" data-name="${esc(r.name)}" data-t1="${esc(p[0] || '')}" data-t2="${esc(p[1] || '')}" data-date="${r.date}" style="padding:5px 10px">เปิด</button></td></tr>`; }).join('')}</tbody></table></div>` : `<div class="muted">ยังไม่มีใบประกาศ</div>`;
+      <tbody>${rows.map(r => { const p = String(r.title || '').split('|||'); return `<tr style="border-top:1px solid var(--line)"><td style="padding:7px 10px;text-align:center">${r.no}</td><td style="padding:7px 10px">${esc(r.name)}</td><td style="padding:7px 10px">${esc(p[1] || p[0] || '')}</td><td style="padding:7px 10px;text-align:center">${r.date}</td><td style="padding:7px 10px;text-align:center;white-space:nowrap"><button class="btn btn-ghost cOpen" data-no="${r.no}" data-name="${esc(r.name)}" data-t1="${esc(p[0] || '')}" data-t2="${esc(p[1] || '')}" data-date="${r.date}" style="padding:5px 10px">เปิด</button> <button class="btn cDel" data-no="${r.no}" data-name="${esc(r.name)}" style="padding:5px 10px;background:#FBEAEA;color:var(--danger)">ลบ</button></td></tr>`; }).join('')}</tbody></table></div>` : `<div class="muted">ยังไม่มีใบประกาศ</div>`;
     v.querySelectorAll('.cOpen').forEach(b => b.addEventListener('click', () => showCert({ no: b.getAttribute('data-no'), name: b.getAttribute('data-name'), title1: b.getAttribute('data-t1'), title2: b.getAttribute('data-t2'), monthYear: fmtMonthYear(b.getAttribute('data-date')) })));
+    v.querySelectorAll('.cDel').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('ลบใบประกาศเลขที่ ' + b.getAttribute('data-no') + ' ของ "' + b.getAttribute('data-name') + '" ?\nการลบนี้ย้อนกลับไม่ได้')) return;
+      b.disabled = true;
+      try { await rpc('app_admin_delete_cert', { p_no: Number(b.getAttribute('data-no')) }); await loadList(); }
+      catch (e) { alert('ลบไม่สำเร็จ'); b.disabled = false; }
+    }));
   }
   draw();
 }
