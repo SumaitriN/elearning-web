@@ -6,6 +6,35 @@ const sb = supabase.createClient(window.SUPA_URL, window.SUPA_ANON);
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+// ---------- กล่องยืนยันแบบ custom (แทน window.confirm) ----------
+function confirmDialog({ title = 'ยืนยัน', message = '', confirmText = 'ยืนยัน', icon = '🗑️', danger = true } = {}) {
+  return new Promise((resolve) => {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(20,40,45,.45);display:flex;align-items:center;justify-content:center;padding:20px;animation:cdFade .12s ease';
+    ov.innerHTML = `<div style="background:#fff;border-radius:18px;max-width:420px;width:100%;padding:28px 26px 22px;box-shadow:0 24px 70px rgba(20,40,45,.3);text-align:center">
+      <div style="font-size:42px;line-height:1;margin-bottom:10px">${icon}</div>
+      <h3 style="margin:0 0 8px;font-size:18px;font-weight:700;color:var(--ink)">${esc(title)}</h3>
+      <div style="color:var(--gray-700);font-size:14px;line-height:1.6;margin-bottom:24px;white-space:pre-line">${esc(message)}</div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="btn btn-ghost" data-act="cancel" style="padding:11px 26px;width:auto">ยกเลิก</button>
+        <button class="btn" data-act="ok" style="padding:11px 26px;width:auto;background:${danger ? 'var(--danger)' : 'var(--teal)'};color:#fff;box-shadow:0 6px 16px ${danger ? 'rgba(214,69,69,.3)' : 'rgba(33,189,190,.28)'}">${esc(confirmText)}</button>
+      </div></div>`;
+    if (!document.getElementById('cdFadeKf')) {
+      const s = document.createElement('style'); s.id = 'cdFadeKf';
+      s.textContent = '@keyframes cdFade{from{opacity:0}to{opacity:1}}';
+      document.head.appendChild(s);
+    }
+    const close = (val) => { ov.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
+    const onKey = (e) => { if (e.key === 'Escape') close(false); else if (e.key === 'Enter') close(true); };
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(false); });
+    ov.querySelector('[data-act="cancel"]').addEventListener('click', () => close(false));
+    ov.querySelector('[data-act="ok"]').addEventListener('click', () => close(true));
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(ov);
+    ov.querySelector('[data-act="ok"]').focus();
+  });
+}
+
 // ---------- โทเคน ----------
 function deviceToken() {
   let d = localStorage.getItem('device_token');
@@ -1109,7 +1138,12 @@ async function renderCerts(v) {
       <tbody>${rows.map(r => { const p = String(r.title || '').split('|||'); return `<tr style="border-top:1px solid var(--line)"><td style="padding:7px 10px;text-align:center">${r.no}</td><td style="padding:7px 10px">${esc(r.name)}</td><td style="padding:7px 10px">${esc(p[1] || p[0] || '')}</td><td style="padding:7px 10px;text-align:center">${r.date}</td><td style="padding:7px 10px;text-align:center;white-space:nowrap"><button class="btn btn-ghost cOpen" data-no="${r.no}" data-name="${esc(r.name)}" data-t1="${esc(p[0] || '')}" data-t2="${esc(p[1] || '')}" data-date="${r.date}" style="padding:5px 10px">เปิด</button> <button class="btn cDel" data-no="${r.no}" data-name="${esc(r.name)}" style="padding:5px 10px;background:#FBEAEA;color:var(--danger)">ลบ</button></td></tr>`; }).join('')}</tbody></table></div>` : `<div class="muted">ยังไม่มีใบประกาศ</div>`;
     v.querySelectorAll('.cOpen').forEach(b => b.addEventListener('click', () => showCert({ no: b.getAttribute('data-no'), name: b.getAttribute('data-name'), title1: b.getAttribute('data-t1'), title2: b.getAttribute('data-t2'), monthYear: fmtMonthYear(b.getAttribute('data-date')) })));
     v.querySelectorAll('.cDel').forEach(b => b.addEventListener('click', async () => {
-      if (!confirm('ลบใบประกาศเลขที่ ' + b.getAttribute('data-no') + ' ของ "' + b.getAttribute('data-name') + '" ?\nการลบนี้ย้อนกลับไม่ได้')) return;
+      const ok = await confirmDialog({
+        title: 'ลบใบประกาศ',
+        message: 'ใบประกาศเลขที่ ' + b.getAttribute('data-no') + '\nของ "' + b.getAttribute('data-name') + '"\n\nการลบนี้ย้อนกลับไม่ได้',
+        confirmText: 'ลบเลย'
+      });
+      if (!ok) return;
       b.disabled = true;
       try { await rpc('app_admin_delete_cert', { p_no: Number(b.getAttribute('data-no')) }); await loadList(); }
       catch (e) { alert('ลบไม่สำเร็จ'); b.disabled = false; }
