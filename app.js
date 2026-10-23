@@ -55,8 +55,11 @@ async function doLogin(e) {
     if (error) throw error;
     setSession(data.token); ME = data.user; await enterApp();
   } catch (err) {
-    $('#loginErr').textContent = (String(err.message || '').includes('invalid_credentials'))
-      ? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' : 'เข้าสู่ระบบไม่สำเร็จ ลองใหม่อีกครั้ง';
+    const m = String(err.message || '');
+    $('#loginErr').textContent = m.includes('account_disabled')
+      ? 'บัญชีนี้ถูกปิดใช้งาน กรุณาติดต่อผู้ดูแลระบบ'
+      : m.includes('invalid_credentials')
+        ? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' : 'เข้าสู่ระบบไม่สำเร็จ ลองใหม่อีกครั้ง';
   } finally { btn.disabled = false; }
 }
 
@@ -1387,14 +1390,25 @@ async function renderAdmin(v) {
           <tr><td style="${td};text-align:left"><b>ลูกค้า</b> (customer)</td><td style="${td}">${vw}</td><td style="${td}">${vw}</td><td style="${td}">${no}</td><td style="${td}">${no}</td><td style="${td}">เฉพาะทีมตน (ดูอย่างเดียว)</td></tr>
         </tbody></table></div></div>`;
   }
+  const hrStatusTag = (s) => {
+    if (s === 'active') return `<span style="font-size:11px;color:var(--success)">● ทำงานอยู่</span>`;
+    if (s === 'inactive') return `<span style="font-size:11px;color:var(--danger)">● ออกแล้ว</span>`;
+    if (s) return `<span style="font-size:11px;color:var(--orange)">● ${esc(s)}</span>`;
+    return '';
+  };
   function rowHtml(u) {
+    const off = u.active === false;
     const hr = u.hr_name
-      ? `<div style="font-weight:600;color:var(--teal-700)">${esc(u.hr_name)}</div><div class="muted" style="font-size:11px">HR#${esc(u.employee_id || '')}</div>`
+      ? `<div style="font-weight:600;color:var(--teal-700)">${esc(u.hr_name)}</div><div class="muted" style="font-size:11px">HR#${esc(u.employee_id || '')} ${hrStatusTag(u.hr_status)}</div>`
       : `<span class="muted" style="font-size:12px">— ยังไม่จับคู่ —</span>`;
-    return `<tr style="border-top:1px solid var(--line)">
+    const statusCell = off
+      ? `<span class="st" style="background:#FBEAEA;color:var(--danger)">ปิดใช้งาน</span><br><button class="btn btn-ghost aTgl" data-id="${u.id}" data-to="1" style="padding:4px 9px;font-size:12px;margin-top:5px">เปิดใช้งาน</button>`
+      : `<span class="st ok">ใช้งาน</span><br><button class="btn btn-ghost aTgl" data-id="${u.id}" data-to="0" style="padding:4px 9px;font-size:12px;margin-top:5px">ปิดใช้งาน</button>`;
+    return `<tr style="border-top:1px solid var(--line);${off ? 'opacity:.55;background:#fafafa' : ''}">
       <td style="padding:7px 10px">${esc(u.email)}</td>
       <td style="padding:7px 10px;min-width:150px">${hr}</td>
-      <td style="padding:7px 10px"><input class="nEdit" data-id="${u.id}" value="${esc(u.name || '')}" style="${cell};width:140px"></td>
+      <td style="padding:7px 10px;text-align:center">${statusCell}</td>
+      <td style="padding:7px 10px"><input class="nEdit" data-id="${u.id}" value="${esc(u.name || '')}" style="${cell};width:130px"></td>
       <td style="padding:7px 10px;text-align:center"><select class="rEdit" data-id="${u.id}" style="${cell}">${roleOpts(u.role)}</select></td>
       <td style="padding:7px 10px;min-width:180px">${teamChecks(u.id, u.teams || [])}</td>
       <td style="padding:7px 10px;text-align:center"><button class="btn btn-primary rSave" data-id="${u.id}" style="padding:6px 12px;width:auto;font-size:13px">💾 บันทึก</button></td>
@@ -1407,7 +1421,7 @@ async function renderAdmin(v) {
     let list = users.filter(u => !q || (u.email || '').toLowerCase().includes(q) || (u.name || '').toLowerCase().includes(q));
     const key = st.sort;
     list.sort((a, b) => { const c = String(a[key] || '').toLowerCase().localeCompare(String(b[key] || '').toLowerCase()); return st.dir === 'asc' ? c : -c; });
-    body.innerHTML = list.length ? list.map(rowHtml).join('') : `<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--muted)">ไม่พบ</td></tr>`;
+    body.innerHTML = list.length ? list.map(rowHtml).join('') : `<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--muted)">ไม่พบ</td></tr>`;
     const cnt = $('#uCount'); if (cnt) cnt.textContent = `(${list.length}${q ? '/' + users.length : ''}) · ผู้ดูแล ${users.filter(u => u.role === 'admin').length} คน`;
     wireRows();
   }
@@ -1429,6 +1443,13 @@ async function renderAdmin(v) {
       const id = b.getAttribute('data-id'), np = v.querySelector(`.pNew[data-id="${id}"]`).value;
       if (np.length < 6) { alert('รหัสผ่านอย่างน้อย 6 ตัว'); return; }
       b.disabled = true; try { await rpc('app_admin_reset_password', { p_user_id: id, p_new: np }); alert('รีเซ็ตรหัสผ่านเรียบร้อย'); v.querySelector(`.pNew[data-id="${id}"]`).value = ''; } catch (e) { alert('ไม่สำเร็จ'); } finally { b.disabled = false; }
+    }));
+    v.querySelectorAll('.aTgl').forEach(b => b.addEventListener('click', async () => {
+      const id = b.getAttribute('data-id'), to = b.getAttribute('data-to') === '1';
+      if (!to && !confirm('ปิดใช้งานบัญชีนี้? ผู้ใช้จะล็อกอินไม่ได้จนกว่าจะเปิดใหม่')) return;
+      b.disabled = true;
+      try { await rpc('app_admin_set_active', { p_user_id: id, p_active: to }); const u = users.find(x => x.id === id); if (u) u.active = to; renderRows(); }
+      catch (e) { alert(String(e.message || '').includes('self') ? 'ปิดบัญชีตัวเองไม่ได้' : 'ไม่สำเร็จ'); b.disabled = false; }
     }));
     v.querySelectorAll('.uDel').forEach(b => b.addEventListener('click', async () => {
       if (!confirm('ลบผู้ใช้ "' + b.getAttribute('data-name') + '" ?')) return;
@@ -1468,9 +1489,9 @@ async function renderAdmin(v) {
           <input id="uSearch" placeholder="🔍 ค้นหาชื่อ / อีเมล..." style="${SS};min-width:200px" value="${esc(st.q)}">
           <select id="uTeam" style="${SS}"><option value="">ทุกทีม</option>${teamOpts(team)}</select>
         </div></div>
-        <div class="muted" id="hrMsg" style="margin-top:8px;font-size:12px">ชื่อในระบบดึงจาก dgs-core โดยจับคู่ด้วยอีเมล · คนที่ยังไม่จับคู่จะใช้ชื่อที่กรอกเอง</div>
+        <div class="muted" id="hrMsg" style="margin-top:8px;font-size:12px">ชื่อในระบบดึงจาก dgs-core โดยจับคู่ด้วยอีเมล · กดปุ่มนี้จะจับคู่ใหม่และปิดใช้งานคนที่ออกจากบริษัทแล้วอัตโนมัติ (คนออกแล้วล็อกอินไม่ได้) · เปิดคืนได้เองที่คอลัมน์สถานะ</div>
         <div style="overflow:auto;margin-top:10px"><table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead><tr style="background:var(--teal-700);color:#fff">${sortTh('email', 'อีเมล', 'left')}<th style="padding:9px 10px;text-align:left">ชื่อจาก HR (dgs-core)</th>${sortTh('name', 'ชื่อสำรอง', 'left')}${sortTh('role', 'สิทธิ์', 'center')}<th style="padding:9px 10px">ทีม / โปรเจกต์</th><th style="padding:9px 10px">บันทึก</th><th style="padding:9px 10px">รีเซ็ตรหัสผ่าน</th><th style="padding:9px 10px">ลบ</th></tr></thead>
+          <thead><tr style="background:var(--teal-700);color:#fff">${sortTh('email', 'อีเมล', 'left')}<th style="padding:9px 10px;text-align:left">ชื่อจาก HR (dgs-core)</th><th style="padding:9px 10px">สถานะ</th>${sortTh('name', 'ชื่อสำรอง', 'left')}${sortTh('role', 'สิทธิ์', 'center')}<th style="padding:9px 10px">ทีม / โปรเจกต์</th><th style="padding:9px 10px">บันทึก</th><th style="padding:9px 10px">รีเซ็ตรหัสผ่าน</th><th style="padding:9px 10px">ลบ</th></tr></thead>
           <tbody id="uBody"></tbody></table></div></div>`;
 
     $('#aBtn').addEventListener('click', async () => {
@@ -1504,10 +1525,9 @@ async function renderAdmin(v) {
       const btn = $('#hrLink'), msg = $('#hrMsg'); btn.disabled = true; const old = btn.textContent; btn.textContent = 'กำลังจับคู่...';
       try {
         const r = await rpc('app_admin_link_employees', {});
-        msg.style.color = 'var(--success)';
-        msg.textContent = `จับคู่สำเร็จ · เชื่อมเพิ่ม ${r.linked} คน · รวมที่มีชื่อจาก HR ${r.total_linked}/${r.total_users} คน`;
-        await load(); draw(); $('#hrMsg').style.color = 'var(--success)';
-        $('#hrMsg').textContent = `จับคู่สำเร็จ · เชื่อมเพิ่ม ${r.linked} คน · รวม ${r.total_linked}/${r.total_users} คน`;
+        await load(); draw();
+        $('#hrMsg').style.color = 'var(--success)';
+        $('#hrMsg').textContent = `จับคู่สำเร็จ · เชื่อมเพิ่ม ${r.linked} คน · ปิดใช้งานคนที่ออกแล้ว ${r.deactivated} คน · ใช้งานอยู่ ${r.total_active}/${r.total_users} · มีชื่อจาก HR ${r.total_linked} คน`;
       } catch (e) { $('#hrMsg').style.color = 'var(--danger)'; $('#hrMsg').textContent = 'จับคู่ไม่สำเร็จ'; btn.textContent = old; btn.disabled = false; }
     });
     $('#uTeam').addEventListener('change', async e => { team = e.target.value; await load(); draw(); });
