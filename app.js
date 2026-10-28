@@ -968,8 +968,6 @@ async function renderAssign(v) {
   const tkey = n => /Makro/i.test(n) ? 'Makro' : /Lotus/i.test(n) ? 'Lotus' : 'Center';
 
   function draw() {
-    const lessons = st.items.filter(i => i.type === 'lesson' && (!st.isearch || i.title.toLowerCase().includes(st.isearch)));
-    const quizzes = st.items.filter(i => i.type === 'quiz' && (!st.isearch || i.title.toLowerCase().includes(st.isearch)));
     const uName = u => u.hr_name || u.name || u.email;
     const uq = st.usearch, fusers = st.users.filter(u => !uq || (u.hr_name || '').toLowerCase().includes(uq) || (u.name || '').toLowerCase().includes(uq) || (u.email || '').toLowerCase().includes(uq) || (u.employee_id || '').includes(uq))
       .sort((a, b) => (new Date(b.created || 0)) - (new Date(a.created || 0)));
@@ -977,6 +975,22 @@ async function renderAssign(v) {
     const urow = u => `<label class="pick" style="display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:8px;cursor:pointer;${st.selUsers.has(u.id) ? 'background:#edf9f9' : ''}"><input type="checkbox" class="uchk" value="${u.id}" ${st.selUsers.has(u.id) ? 'checked' : ''} style="margin-top:3px"><span style="min-width:0"><span style="font-weight:600">${esc(uName(u))}</span><br><span class="muted" style="font-size:12px">${u.employee_id ? 'HR#' + esc(u.employee_id) + ' · ' : ''}${esc(u.team || '—')} · ${esc(u.email)}</span></span></label>`;
     const box = 'max-height:380px;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:8px';
     const qbtn = 'padding:6px 12px;font-size:13px';
+    // แสดงเฉพาะงานของทีมผู้รับที่เลือก (+ Center ซึ่งเป็นศูนย์กลาง) — กันงานข้าม Project
+    const allowedTeams = () => { if (!st.selUsers.size) return null; const s = new Set(['Center']); st.users.forEach(u => { if (st.selUsers.has(u.id)) s.add(tkey(u.team || '')); }); return s; };
+    const visItems = () => { const allow = allowedTeams(); const f = it => (!st.isearch || it.title.toLowerCase().includes(st.isearch)) && (!allow || allow.has(tkey(it.team))); return { lessons: st.items.filter(i => i.type === 'lesson' && f(i)), quizzes: st.items.filter(i => i.type === 'quiz' && f(i)) }; };
+    const renderItems = () => {
+      const { lessons, quizzes } = visItems();
+      const visKeys = new Set([...lessons, ...quizzes].map(key));
+      [...st.selItems].forEach(k => { if (!visKeys.has(k)) st.selItems.delete(k); });
+      const il = $('#iList'); if (!il) return;
+      il.innerHTML = `<div class="muted" style="font-weight:600;margin:4px 0 4px;padding:0 6px">บทเรียน (วิดีโอ+เนื้อหา)</div>
+        ${lessons.length ? lessons.map(row).join('') : '<div class="muted" style="padding:6px">—</div>'}
+        <div class="muted" style="font-weight:600;margin:12px 0 4px;padding:0 6px">แบบทดสอบ</div>
+        ${quizzes.length ? quizzes.map(row).join('') : '<div class="muted" style="padding:6px">—</div>'}`;
+      il.querySelectorAll('.ichk').forEach(c => c.addEventListener('change', e => { const k = e.target.getAttribute('data-k'); if (e.target.checked) st.selItems.add(k); else st.selItems.delete(k); e.target.closest('.pick').style.background = e.target.checked ? '#edf9f9' : ''; redrawCount(); }));
+      const hint = $('#iHint'); if (hint) hint.textContent = allowedTeams() ? '🔒 แสดงเฉพาะงานของทีมที่เลือก (+ Center)' : 'เลือกผู้รับก่อน เพื่อให้แสดงเฉพาะงานของทีมนั้น (ตอนนี้แสดงทุกทีม)';
+      redrawCount();
+    };
     v.innerHTML = `<h1>มอบหมายงาน</h1>
       <div class="muted" style="margin-top:-6px;margin-bottom:16px">เลือกบทเรียน/แบบทดสอบ แล้วเลือกผู้รับ กดมอบหมายทีเดียวได้หลายรายการ</div>
       <div class="grid" style="grid-template-columns:1fr 1fr;align-items:start">
@@ -990,12 +1004,8 @@ async function renderAssign(v) {
             <button class="btn btn-ghost" id="iAll" style="${qbtn}">เลือกทั้งหมด</button>
             <button class="btn btn-ghost" id="iClear" style="${qbtn}">ล้าง</button>
           </div>
-          <div style="${box}">
-            <div class="muted" style="font-weight:600;margin:4px 0 4px;padding:0 6px">บทเรียน (วิดีโอ+เนื้อหา)</div>
-            ${lessons.length ? lessons.map(row).join('') : '<div class="muted" style="padding:6px">—</div>'}
-            <div class="muted" style="font-weight:600;margin:12px 0 4px;padding:0 6px">แบบทดสอบ</div>
-            ${quizzes.length ? quizzes.map(row).join('') : '<div class="muted" style="padding:6px">—</div>'}
-          </div>
+          <div class="muted" id="iHint" style="font-size:12px;margin:-4px 0 8px"></div>
+          <div id="iList" style="${box}"></div>
         </div>
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -1023,11 +1033,10 @@ async function renderAssign(v) {
       </div>
       <div class="login-err" id="aErr" style="margin:-6px 0 12px"></div>
       <div class="card"><h2>งานที่มอบหมายล่าสุด</h2><div id="aList" class="muted">กำลังโหลด...</div></div>`;
-    v.querySelectorAll('.ichk').forEach(c => c.addEventListener('change', e => { const k = e.target.getAttribute('data-k'); if (e.target.checked) st.selItems.add(k); else st.selItems.delete(k); e.target.closest('.pick').style.background = e.target.checked ? '#edf9f9' : ''; redrawCount(); }));
-    $('#iAll').addEventListener('click', () => { [...lessons, ...quizzes].forEach(it => st.selItems.add(key(it))); draw(); });
-    $('#iClear').addEventListener('click', () => { st.selItems.clear(); draw(); });
-    $('#iSearch').addEventListener('input', e => { st.isearch = e.target.value.trim().toLowerCase(); draw(); const s = $('#iSearch'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); });
-    v.querySelectorAll('.uchk').forEach(c => c.addEventListener('change', e => { if (e.target.checked) st.selUsers.add(e.target.value); else st.selUsers.delete(e.target.value); e.target.closest('.pick').style.background = e.target.checked ? '#edf9f9' : ''; redrawCount(); }));
+    $('#iAll').addEventListener('click', () => { const { lessons, quizzes } = visItems(); [...lessons, ...quizzes].forEach(it => st.selItems.add(key(it))); renderItems(); });
+    $('#iClear').addEventListener('click', () => { st.selItems.clear(); renderItems(); });
+    $('#iSearch').addEventListener('input', e => { st.isearch = e.target.value.trim().toLowerCase(); renderItems(); });
+    v.querySelectorAll('.uchk').forEach(c => c.addEventListener('change', e => { if (e.target.checked) st.selUsers.add(e.target.value); else st.selUsers.delete(e.target.value); e.target.closest('.pick').style.background = e.target.checked ? '#edf9f9' : ''; renderItems(); redrawCount(); }));
     $('#uSearch').addEventListener('input', e => { st.usearch = e.target.value.trim().toLowerCase(); draw(); const s = $('#uSearch'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); });
     v.querySelectorAll('.qf').forEach(b => b.addEventListener('click', () => {
       const f = b.getAttribute('data-f');
@@ -1050,6 +1059,7 @@ async function renderAssign(v) {
         err.style.color = 'var(--success)'; err.textContent = `มอบหมายเรียบร้อย ${st.selItems.size} รายการ × ${ids.length} คน ✓`; loadList();
       } catch (e) { err.textContent = 'มอบหมายไม่สำเร็จ'; } finally { btn.disabled = false; }
     });
+    renderItems();
     loadList();
   }
   function redrawCount() {
@@ -1078,8 +1088,9 @@ async function renderAssign(v) {
           <button class="btn btn-ghost" id="aqAll" style="padding:7px 12px;font-size:13px">ขยาย/ย่อทั้งหมด</button>
         </div></div>
       <div id="aPeople"></div>`;
-    const itemLine = it => `<div style="padding:5px 0;border-top:1px dashed #eef1f2;font-size:13px;display:flex;justify-content:space-between;gap:8px">
-        <span>${esc(it.item || '')}</span>${it.due ? `<span class="muted" style="white-space:nowrap">⏰ ${it.due}</span>` : ''}</div>`;
+    const itemLine = it => `<div style="padding:5px 0;border-top:1px dashed #eef1f2;font-size:13px;display:flex;justify-content:space-between;gap:8px;align-items:center">
+        <span>${esc(it.item || '')}</span>
+        <span style="display:flex;gap:8px;align-items:center;white-space:nowrap">${it.due ? `<span class="muted">⏰ ${it.due}</span>` : ''}<button class="aRm" data-id="${esc(it.id)}" data-name="${esc(it.item || '')}" title="ยกเลิกมอบหมาย" style="border:none;background:#FBEAEA;color:var(--danger);border-radius:6px;cursor:pointer;padding:2px 9px;font-size:13px;line-height:1.4">✕</button></span></div>`;
     const section = (icon, label, arr, color) => `<div style="flex:1;min-width:220px">
         <div style="font-weight:700;font-size:13px;color:${color};margin-bottom:2px">${icon} ${label} <span style="opacity:.7">(${arr.length})</span></div>
         ${arr.length ? arr.map(itemLine).join('') : '<div class="muted" style="font-size:12px;padding:5px 0">— ไม่มี —</div>'}</div>`;
@@ -1106,6 +1117,13 @@ async function renderAssign(v) {
         const b = h.nextElementSibling, open = b.style.display === 'none';
         b.style.display = open ? 'block' : 'none';
         const ch = h.querySelector('.aCh'); if (ch) ch.style.transform = open ? 'rotate(180deg)' : '';
+      }));
+      box.querySelectorAll('.aRm').forEach(b => b.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const ok = await confirmDialog({ title: 'ยกเลิกมอบหมาย', message: 'ยกเลิกงาน "' + b.getAttribute('data-name') + '" ออกจากผู้เรียนคนนี้?\n(ประวัติการเรียน/คะแนนที่ทำไปแล้วจะยังอยู่)', confirmText: 'ยกเลิกมอบหมาย', cancelText: 'ไม่ยกเลิก', icon: '🗑️', danger: true });
+        if (!ok) return;
+        try { await rpc('app_admin_unassign', { p_id: b.getAttribute('data-id') }); await loadList(); }
+        catch (_) { alert('ยกเลิกไม่สำเร็จ ลองอีกครั้ง'); }
       }));
     };
     render();
